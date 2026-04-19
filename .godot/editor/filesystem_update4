@@ -1,1 +1,4 @@
 res://scenes/Main.tscn
+res://scripts/Spawner.gd
+res://scripts/Main.gd
+res://scripts/Rat.gd

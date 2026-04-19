@@ -5,7 +5,7 @@ signal pickup_spawned(pickup: Area2D)
 @export var ingredient_scene: PackedScene
 @export var rat_scene: PackedScene
 
-@export var lane_y := 300.0
+@export var lane_ys: Array[float] = [200.0, 300.0, 400.0]
 @export var spawn_interval := 1.15
 @export var rat_chance := 0.5
 
@@ -91,14 +91,14 @@ func _spawn_one() -> void:
 func _emit_ingredient(kind: String) -> void:
 	var node := ingredient_scene.instantiate() as Area2D
 	node.kind = kind
-	node.position = Vector2(_spawn_x(), lane_y)
+	node.position = Vector2(_spawn_x(), _spawn_y())
 	node.direction = _spawn_dir(node.position.x)
 	add_child(node)
 	pickup_spawned.emit(node)
 
 func _emit_instance(scene: PackedScene) -> void:
 	var node := scene.instantiate() as Area2D
-	node.position = Vector2(_spawn_x(), lane_y)
+	node.position = Vector2(_spawn_x(), _spawn_y())
 	node.direction = _spawn_dir(node.position.x)
 	add_child(node)
 	pickup_spawned.emit(node)
@@ -110,5 +110,6 @@ func _spawn_x() -> float:
 func _spawn_dir(x: float) -> int:
 	var w := get_viewport_rect().size.x
 	return 1 if x < w * 0.5 else -1
-
-
+	
+func _spawn_y() -> float:
+	return lane_ys[randi() % lane_ys.size()]

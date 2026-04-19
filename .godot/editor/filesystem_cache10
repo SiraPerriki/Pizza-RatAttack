@@ -1,5 +1,5 @@
 63f7b34db8d8cdea90c76aacccf841ec
-::res://::1776628516
+::res://::1776630740
 README.md::TextFile::-1::1776610170::0::1::::<><><>0<>0<><>::
 ::res://assets/::1776610337
 ::res://ejemplo_Rata/::1776622391
@@ -17,9 +17,9 @@ queso.png::CompressedTexture2D::5340048305358058740::1776619028::1776619384::1::
 quesoconmasa.png::CompressedTexture2D::3981443546739143746::1776619022::1776619384::1::::<><><>0<>0<>e621734f568ceaf0a655e634605931ac<>res://.godot/imported/quesoconmasa.png-7341bcaa4fa458515e0beef1a31dfe38.ctex::
 queso_masa.png::CompressedTexture2D::1794458377622388116::1776618956::1776619384::1::::<><><>0<>0<>8f90c30416fd228c9b4d885b68b0909f<>res://.godot/imported/queso_masa.png-30e3381dcdfbd5dad1a5e2572d2d22e8.ctex::
 rata_move_side.png::CompressedTexture2D::976116955386326617::1772754991::1776619585::1::::<><><>0<>0<>f6e34ffb750978642b9cb8221406721b<>res://.godot/imported/rata_move_side.png-9760c248577160da81c31472fce1c6cb.ctex::
-::res://scenes/::1776628217
+::res://scenes/::1776629508
 Ingredient.tscn::PackedScene::-1::1776620053::0::1::::<><><>0<>0<><>::res://scripts/FloatingPickup.gd
-Main.tscn::PackedScene::-1::1776618507::0::1::::<><><>0<>0<><>::res://scripts/Main.gd<>res://scripts/Bumper.gd<>res://scripts/Spawner.gd
+Main.tscn::PackedScene::5641860175055544262::1776629508::0::1::::<><><>0<>0<><>::uid://d1odsjv2m65l4::::res://scripts/Main.gd<>uid://bvo3cq2cpf2x4::::res://scripts/Bumper.gd<>uid://b2e14td2mgoqr::::res://scripts/Spawner.gd
 Pizza.tscn::PackedScene::-1::1776620018::0::1::::<><><>0<>0<><>::res://scripts/Pizza.gd
 Rat.tscn::PackedScene::149039590413318564::1776628217::0::1::::<><><>0<>0<><>::uid://doki032jnvmie::::res://scripts/Rat.gd<>uid://n53rehf6qdwr::::res://img/rata_move_side.png
 ::res://scripts/::1776627517

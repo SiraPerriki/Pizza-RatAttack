@@ -130,13 +130,20 @@ func _is_completed() -> bool:
 
 func _refresh_hud() -> void:
 	lives_label.text = _build_hearts_text()
-	var lines: Array[String] = []
-	lines.append("[b][color=#FFE55A]Queso:[/color][/b] %d/%d" % [progress[Globals.ING_CHEESE], requirements[Globals.ING_CHEESE]])
-	lines.append("[b][color=#E5D1BF]Champ:[/color][/b] %d/%d" % [progress[Globals.ING_MUSHROOM], requirements[Globals.ING_MUSHROOM]])
-	lines.append("[b][color=#FF6D6D]Pepp:[/color][/b] %d/%d" % [progress[Globals.ING_PEPPERONI], requirements[Globals.ING_PEPPERONI]])
-	lines.append("[b][color=#7BE07B]Aceit:[/color][/b] %d/%d" % [progress[Globals.ING_OLIVE], requirements[Globals.ING_OLIVE]])
-	goals_label.text = "\n".join(lines)
-	phase_label.text = "[b]Fase:[/b] [color=#FFE55A]Queso[/color] (y ratas)" if progress[Globals.ING_CHEESE] < requirements[Globals.ING_CHEESE] else "[b]Fase:[/b] Ingredientes (y ratas)"
+
+	# Ingredientes en línea horizontal con emojis
+	goals_label.text = (
+		"[b][color=#FFE55A]🧀 %d/%d[/color][/b]   " % [progress[Globals.ING_CHEESE], requirements[Globals.ING_CHEESE]] +
+		"[b][color=#E5D1BF]🍄 %d/%d[/color][/b]   " % [progress[Globals.ING_MUSHROOM], requirements[Globals.ING_MUSHROOM]] +
+		"[b][color=#FF6D6D]🌶 %d/%d[/color][/b]   " % [progress[Globals.ING_PEPPERONI], requirements[Globals.ING_PEPPERONI]] +
+		"[b][color=#7BE07B]🫒 %d/%d[/color][/b]" % [progress[Globals.ING_OLIVE], requirements[Globals.ING_OLIVE]]
+	)
+
+	# Fase: texto compacto alineado a la derecha
+	if progress[Globals.ING_CHEESE] < requirements[Globals.ING_CHEESE]:
+		phase_label.text = "[right][color=#FFE55A]🧀 Queso primero[/color][/right]"
+	else:
+		phase_label.text = "[right][color=#AADDAA]Ingredientes libres[/color][/right]"
 
 func _build_hearts_text() -> String:
 	var t := "[b]Vidas:[/b] "
@@ -144,7 +151,7 @@ func _build_hearts_text() -> String:
 		if i < lives:
 			t += "[color=#FF4A4A]♥[/color] "
 		else:
-			t += "[color=#C8C8C8]♥[/color] "
+			t += "[color=#555555]♥[/color] "
 	return t.strip_edges()
 
 func _reset_round_data() -> void:
@@ -175,7 +182,7 @@ func _show_start_screen() -> void:
 	_spawn_pizza()
 	start_screen.visible = true
 	end_screen.visible = false
-	phase_label.text = "[b]Pulsa Iniciar Partida[/b]"
+	phase_label.text = "[right]¡Pulsa Iniciar![/right]"
 
 func _start_match() -> void:
 	_reset_round_data()
@@ -186,7 +193,7 @@ func _start_match() -> void:
 
 func _end_match(victory: bool) -> void:
 	_set_play_state(false)
-	end_title.text = "[b][color=#7BE07B]PIZZA COMPLETA![/color][/b]" if victory else "[b][color=#FF6D6D]GAME OVER[/color][/b]"
+	end_title.text = "[center][b][color=#7BE07B]🍕 PIZZA COMPLETA! 🍕[/color][/b][/center]" if victory else "[center][b][color=#FF6D6D]💀 GAME OVER 💀[/color][/b][/center]"
 	end_screen.visible = true
 
 func _on_start_pressed() -> void:

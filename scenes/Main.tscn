@@ -17,6 +17,65 @@ size = Vector2(840, 60)
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_3"]
 size = Vector2(760, 140)
 
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_modal"]
+bg_color = Color(0.98, 0.94, 0.82, 1)
+corner_radius_top_left = 20
+corner_radius_top_right = 20
+corner_radius_bottom_right = 20
+corner_radius_bottom_left = 20
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(0.72, 0.15, 0.1, 1)
+shadow_color = Color(0.0, 0.0, 0.0, 0.38)
+shadow_size = 10
+shadow_offset = Vector2(0, 5)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_btn_green_normal"]
+bg_color = Color(0.14, 0.50, 0.19, 1)
+corner_radius_top_left = 12
+corner_radius_top_right = 12
+corner_radius_bottom_right = 12
+corner_radius_bottom_left = 12
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_btn_green_hover"]
+bg_color = Color(0.19, 0.63, 0.25, 1)
+corner_radius_top_left = 12
+corner_radius_top_right = 12
+corner_radius_bottom_right = 12
+corner_radius_bottom_left = 12
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_btn_green_pressed"]
+bg_color = Color(0.09, 0.36, 0.13, 1)
+corner_radius_top_left = 12
+corner_radius_top_right = 12
+corner_radius_bottom_right = 12
+corner_radius_bottom_left = 12
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_btn_red_normal"]
+bg_color = Color(0.65, 0.13, 0.13, 1)
+corner_radius_top_left = 12
+corner_radius_top_right = 12
+corner_radius_bottom_right = 12
+corner_radius_bottom_left = 12
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_btn_red_hover"]
+bg_color = Color(0.80, 0.18, 0.18, 1)
+corner_radius_top_left = 12
+corner_radius_top_right = 12
+corner_radius_bottom_right = 12
+corner_radius_bottom_left = 12
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_btn_red_pressed"]
+bg_color = Color(0.48, 0.09, 0.09, 1)
+corner_radius_top_left = 12
+corner_radius_top_right = 12
+corner_radius_bottom_right = 12
+corner_radius_bottom_left = 12
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_focus"]
+
 [node name="Main" type="Node2D" unique_id=716566967]
 script = ExtResource("1_main_script")
 
@@ -24,7 +83,7 @@ script = ExtResource("1_main_script")
 offset_right = 720.0
 offset_bottom = 1280.0
 mouse_filter = 2
-color = Color(0.97, 0.96, 0.9, 1)
+color = Color(0.96, 0.91, 0.78, 1)
 
 [node name="Walls" type="StaticBody2D" parent="." unique_id=1945572287]
 physics_material_override = SubResource("PhysicsMaterial_1")
@@ -55,9 +114,9 @@ shape = SubResource("RectangleShape2D_3")
 [node name="BumperVisual" type="ColorRect" parent="." unique_id=688173656]
 offset_top = 1180.0
 offset_right = 720.0
-offset_bottom = 1192.0
+offset_bottom = 1196.0
 mouse_filter = 2
-color = Color(0.88, 0.18, 0.18, 1)
+color = Color(0.72, 0.14, 0.10, 1)
 
 [node name="PizzaSpawn" type="Marker2D" parent="." unique_id=1002779050]
 position = Vector2(360, 980)
@@ -68,47 +127,44 @@ script = ExtResource("3_spawner_script")
 [node name="HUD" type="CanvasLayer" parent="." unique_id=2092666246]
 
 [node name="Panel" type="ColorRect" parent="HUD" unique_id=1118218696]
-offset_left = 16.0
-offset_top = 16.0
-offset_right = 320.0
-offset_bottom = 230.0
+offset_left = 0.0
+offset_top = 0.0
+offset_right = 720.0
+offset_bottom = 106.0
 mouse_filter = 2
-color = Color(1, 1, 1, 0.68)
+color = Color(0.12, 0.06, 0.03, 0.97)
 
 [node name="LivesLabel" type="RichTextLabel" parent="HUD" unique_id=1817585040]
-offset_left = 26.0
-offset_top = 24.0
-offset_right = 310.0
-offset_bottom = 58.0
-theme_override_colors/default_color = Color(0.18, 0.22, 0.18, 1)
-theme_override_font_sizes/normal_font_size = 24
+offset_left = 14.0
+offset_top = 8.0
+offset_right = 380.0
+offset_bottom = 52.0
+theme_override_colors/default_color = Color(1.0, 0.94, 0.80, 1)
+theme_override_font_sizes/normal_font_size = 26
 bbcode_enabled = true
-text = "[b]Vidas:[/b] 3"
+text = "[b]Vidas:[/b] [color=#FF4A4A]♥[/color] [color=#FF4A4A]♥[/color] [color=#FF4A4A]♥[/color]"
 fit_content = true
 
 [node name="PhaseLabel" type="RichTextLabel" parent="HUD" unique_id=652519911]
-offset_left = 26.0
-offset_top = 52.0
-offset_right = 310.0
-offset_bottom = 100.0
-theme_override_colors/default_color = Color(0.2, 0.2, 0.2, 1)
-theme_override_font_sizes/normal_font_size = 18
+offset_left = 380.0
+offset_top = 8.0
+offset_right = 706.0
+offset_bottom = 52.0
+theme_override_colors/default_color = Color(0.72, 0.72, 0.68, 1)
+theme_override_font_sizes/normal_font_size = 16
 bbcode_enabled = true
-text = "[b]Fase:[/b] [color=#FFE55A]Queso[/color] (y ratas)"
+text = "[right][color=#FFE55A]🧀 Queso primero[/color][/right]"
 fit_content = true
 
 [node name="GoalsLabel" type="RichTextLabel" parent="HUD" unique_id=1671480785]
-offset_left = 26.0
-offset_top = 100.0
-offset_right = 310.0
-offset_bottom = 220.0
-theme_override_colors/default_color = Color(0.15, 0.15, 0.15, 1)
-theme_override_font_sizes/normal_font_size = 20
+offset_left = 14.0
+offset_top = 56.0
+offset_right = 706.0
+offset_bottom = 100.0
+theme_override_colors/default_color = Color(0.92, 0.90, 0.84, 1)
+theme_override_font_sizes/normal_font_size = 19
 bbcode_enabled = true
-text = "[b][color=#FFE55A]Queso:[/color][/b] 0/1
-[b][color=#E5D1BF]Champ:[/color][/b] 0/5
-[b][color=#FF6D6D]Pepp:[/color][/b] 0/5
-[b][color=#7BE07B]Aceit:[/color][/b] 0/5"
+text = "[b][color=#FFE55A]🧀 0/1[/color][/b]   [b][color=#E5D1BF]🍄 0/5[/color][/b]   [b][color=#FF6D6D]🌶 0/5[/color][/b]   [b][color=#7BE07B]🫒 0/5[/color][/b]"
 fit_content = true
 
 [node name="FeedbackLabel" type="Label" parent="HUD" unique_id=1327656298]
@@ -117,13 +173,14 @@ offset_top = 560.0
 offset_right = 590.0
 offset_bottom = 640.0
 theme_override_colors/font_color = Color(1, 1, 1, 1)
-theme_override_colors/font_outline_color = Color(0.15, 0.15, 0.15, 1)
-theme_override_constants/outline_size = 6
+theme_override_colors/font_outline_color = Color(0.10, 0.04, 0.02, 1)
+theme_override_constants/outline_size = 7
 theme_override_font_sizes/font_size = 38
 horizontal_alignment = 1
 vertical_alignment = 1
 
 [node name="FeedbackTimer" type="Timer" parent="HUD" unique_id=1866204704]
+wait_time = 2.0
 one_shot = true
 
 [node name="StartScreen" type="CanvasLayer" parent="." unique_id=1728364751]
@@ -131,60 +188,66 @@ one_shot = true
 [node name="Shade" type="ColorRect" parent="StartScreen" unique_id=1960480169]
 offset_right = 720.0
 offset_bottom = 1280.0
-color = Color(0.13, 0.24, 0.16, 0.42)
+color = Color(0.08, 0.04, 0.02, 0.88)
 
 [node name="Panel" type="Panel" parent="StartScreen" unique_id=1334506192]
-modulate = Color(1, 0.98, 0.9, 1)
-offset_left = 130.0
-offset_top = 430.0
-offset_right = 590.0
-offset_bottom = 850.0
+offset_left = 100.0
+offset_top = 370.0
+offset_right = 620.0
+offset_bottom = 910.0
+theme_override_styles/panel = SubResource("StyleBoxFlat_modal")
 
 [node name="Title" type="RichTextLabel" parent="StartScreen/Panel" unique_id=242757245]
 layout_mode = 0
-offset_left = 30.0
-offset_top = 40.0
-offset_right = 430.0
+offset_left = 20.0
+offset_top = 30.0
+offset_right = 500.0
 offset_bottom = 120.0
-theme_override_colors/default_color = Color(0.13, 0.5, 0.18, 1)
-theme_override_font_sizes/normal_font_size = 48
+theme_override_colors/default_color = Color(0.22, 0.07, 0.04, 1)
+theme_override_font_sizes/normal_font_size = 50
 bbcode_enabled = true
-text = "[center][b]PIZZAS y RATAS[/b][/center]"
+text = "[center][b]🍕 PIZZAS y RATAS 🍕[/b][/center]"
 fit_content = true
 
 [node name="Subtitle" type="RichTextLabel" parent="StartScreen/Panel" unique_id=573585614]
 layout_mode = 0
-offset_left = 30.0
-offset_top = 120.0
-offset_right = 430.0
-offset_bottom = 220.0
-theme_override_colors/default_color = Color(0.35, 0.18, 0.18, 1)
+offset_left = 20.0
+offset_top = 130.0
+offset_right = 500.0
+offset_bottom = 240.0
+theme_override_colors/default_color = Color(0.32, 0.12, 0.08, 1)
 theme_override_font_sizes/normal_font_size = 22
 bbcode_enabled = true
-text = "[center][b]Lanza[/b], caza ingredientes,
-[b]evita ratas[/b].[/center]"
+text = "[center]Lanza la pizza, caza ingredientes
+🧀 evita las ratas 🐀[/center]"
 fit_content = true
 
 [node name="StartButton" type="Button" parent="StartScreen/Panel" unique_id=2135393174]
-modulate = Color(0.18, 0.62, 0.24, 1)
 layout_mode = 0
-offset_left = 100.0
-offset_top = 245.0
-offset_right = 360.0
-offset_bottom = 310.0
+offset_left = 80.0
+offset_top = 268.0
+offset_right = 440.0
+offset_bottom = 338.0
 theme_override_colors/font_color = Color(1, 1, 1, 1)
-theme_override_font_sizes/font_size = 24
-text = "Iniciar Partida"
+theme_override_font_sizes/font_size = 26
+theme_override_styles/normal = SubResource("StyleBoxFlat_btn_green_normal")
+theme_override_styles/hover = SubResource("StyleBoxFlat_btn_green_hover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_btn_green_pressed")
+theme_override_styles/focus = SubResource("StyleBoxEmpty_focus")
+text = "🎮  Iniciar Partida"
 
 [node name="QuitButton" type="Button" parent="StartScreen/Panel" unique_id=1710965388]
-modulate = Color(0.8, 0.25, 0.25, 1)
 layout_mode = 0
-offset_left = 100.0
-offset_top = 330.0
-offset_right = 360.0
-offset_bottom = 395.0
+offset_left = 80.0
+offset_top = 364.0
+offset_right = 440.0
+offset_bottom = 430.0
 theme_override_colors/font_color = Color(1, 1, 1, 1)
-theme_override_font_sizes/font_size = 20
+theme_override_font_sizes/font_size = 22
+theme_override_styles/normal = SubResource("StyleBoxFlat_btn_red_normal")
+theme_override_styles/hover = SubResource("StyleBoxFlat_btn_red_hover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_btn_red_pressed")
+theme_override_styles/focus = SubResource("StyleBoxEmpty_focus")
 text = "Cerrar Juego"
 
 [node name="EndScreen" type="CanvasLayer" parent="." unique_id=1048510694]
@@ -193,45 +256,51 @@ visible = false
 [node name="Shade" type="ColorRect" parent="EndScreen" unique_id=398340766]
 offset_right = 720.0
 offset_bottom = 1280.0
-color = Color(0.35, 0.12, 0.12, 0.45)
+color = Color(0.08, 0.04, 0.02, 0.88)
 
 [node name="Panel" type="Panel" parent="EndScreen" unique_id=1217480781]
-modulate = Color(1, 0.98, 0.92, 1)
-offset_left = 130.0
-offset_top = 450.0
-offset_right = 590.0
-offset_bottom = 830.0
+offset_left = 100.0
+offset_top = 390.0
+offset_right = 620.0
+offset_bottom = 890.0
+theme_override_styles/panel = SubResource("StyleBoxFlat_modal")
 
 [node name="Title" type="RichTextLabel" parent="EndScreen/Panel" unique_id=1744443169]
 layout_mode = 0
-offset_left = 30.0
-offset_top = 40.0
-offset_right = 430.0
+offset_left = 20.0
+offset_top = 30.0
+offset_right = 500.0
 offset_bottom = 120.0
-theme_override_colors/default_color = Color(0.85, 0.2, 0.2, 1)
-theme_override_font_sizes/normal_font_size = 44
+theme_override_colors/default_color = Color(0.72, 0.10, 0.08, 1)
+theme_override_font_sizes/normal_font_size = 46
 bbcode_enabled = true
-text = "[center][b]GAME OVER[/b][/center]"
+text = "[center][b]💀 GAME OVER 💀[/b][/center]"
 fit_content = true
 
 [node name="RestartButton" type="Button" parent="EndScreen/Panel" unique_id=1982538760]
-modulate = Color(0.18, 0.62, 0.24, 1)
 layout_mode = 0
-offset_left = 100.0
-offset_top = 200.0
-offset_right = 360.0
-offset_bottom = 265.0
+offset_left = 80.0
+offset_top = 210.0
+offset_right = 440.0
+offset_bottom = 280.0
 theme_override_colors/font_color = Color(1, 1, 1, 1)
 theme_override_font_sizes/font_size = 24
-text = "Reiniciar"
+theme_override_styles/normal = SubResource("StyleBoxFlat_btn_green_normal")
+theme_override_styles/hover = SubResource("StyleBoxFlat_btn_green_hover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_btn_green_pressed")
+theme_override_styles/focus = SubResource("StyleBoxEmpty_focus")
+text = "🔄  Reiniciar"
 
 [node name="QuitButton" type="Button" parent="EndScreen/Panel" unique_id=1448076568]
-modulate = Color(0.8, 0.25, 0.25, 1)
 layout_mode = 0
-offset_left = 100.0
-offset_top = 290.0
-offset_right = 360.0
-offset_bottom = 355.0
+offset_left = 80.0
+offset_top = 306.0
+offset_right = 440.0
+offset_bottom = 372.0
 theme_override_colors/font_color = Color(1, 1, 1, 1)
 theme_override_font_sizes/font_size = 20
+theme_override_styles/normal = SubResource("StyleBoxFlat_btn_red_normal")
+theme_override_styles/hover = SubResource("StyleBoxFlat_btn_red_hover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_btn_red_pressed")
+theme_override_styles/focus = SubResource("StyleBoxEmpty_focus")
 text = "Cerrar Juego"
