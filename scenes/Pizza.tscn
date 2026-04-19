@@ -1,0 +1,43 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/Pizza.gd" id="1"]
+
+[sub_resource type="PhysicsMaterial" id="1"]
+friction = 0.15
+bounce = 0.55
+
+[sub_resource type="CircleShape2D" id="2"]
+radius = 44.0
+
+[node name="Pizza" type="RigidBody2D"]
+script = ExtResource("1")
+physics_material_override = SubResource("1")
+gravity_scale = 0.9
+linear_damp = 0.04
+angular_damp = 0.7
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("2")
+
+[node name="BaseSprite" type="Sprite2D" parent="."]
+
+[node name="CheeseLayer" type="Sprite2D" parent="."]
+visible = false
+
+[node name="Toppings" type="Node2D" parent="."]
+
+[node name="DragArea" type="Area2D" parent="."]
+
+[node name="DragCollision" type="CollisionShape2D" parent="DragArea"]
+shape = SubResource("2")
+
+[node name="SlingBase" type="Line2D" parent="."]
+width = 6.0
+default_color = Color(0.74, 0.18, 0.18, 0.95)
+points = PackedVector2Array(-52, -8, 52, -8)
+
+[node name="SlingBand" type="Line2D" parent="."]
+width = 6.0
+default_color = Color(0.74, 0.18, 0.18, 0.95)
+points = PackedVector2Array(-52, -8, 0, 0, 52, -8)
+

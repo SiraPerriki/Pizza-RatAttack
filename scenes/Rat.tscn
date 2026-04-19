@@ -1,0 +1,60 @@
+[gd_scene format=3 uid="uid://cegwpju2f1e3"]
+
+[ext_resource type="Script" uid="uid://doki032jnvmie" path="res://scripts/Rat.gd" id="1_rat_script"]
+[ext_resource type="Texture2D" uid="uid://n53rehf6qdwr" path="res://img/rata_move_side.png" id="2_1r2ik"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_1"]
+radius = 18.027756
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_jvsqe"]
+atlas = ExtResource("2_1r2ik")
+region = Rect2(0, 0, 32, 32)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_xrh22"]
+atlas = ExtResource("2_1r2ik")
+region = Rect2(32, 0, 32, 32)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_8pgqh"]
+atlas = ExtResource("2_1r2ik")
+region = Rect2(64, 0, 32, 32)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_mhhyr"]
+atlas = ExtResource("2_1r2ik")
+region = Rect2(96, 0, 32, 32)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_4kca7"]
+atlas = ExtResource("2_1r2ik")
+region = Rect2(128, 0, 32, 32)
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_ic1sl"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_jvsqe")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_xrh22")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_8pgqh")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_mhhyr")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_4kca7")
+}],
+"loop": true,
+"name": &"rat_move",
+"speed": 5.0
+}]
+
+[node name="Rat" type="Area2D" unique_id=236869461]
+script = ExtResource("1_rat_script")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=966027382]
+shape = SubResource("CircleShape2D_1")
+
+[node name="RatAnim" type="AnimatedSprite2D" parent="." unique_id=474699798]
+sprite_frames = SubResource("SpriteFrames_ic1sl")
+animation = &"rat_move"
