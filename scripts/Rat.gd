@@ -9,16 +9,22 @@ signal picked(kind: String, pos: Vector2, node_ref: Node)
 @export var anim_fps := 10.0
 @export var visual_scale := 4.0
 @export var preferred_animation := "side_move"
+@export var is_vertical := false
 
 const RAT_SHEET := "res://img/rata_move_side.png"
 
 @onready var anim: AnimatedSprite2D = $RatAnim
 
 # Variables de movimiento orgánico
-var _speed_mult := 1.0      # multiplicador de velocidad actual
-var _event_timer := 0.0     # tiempo hasta el próximo cambio de comportamiento
-var _is_paused := false     # la rata está parada
-var _pause_timer := 0.0     # tiempo que dura la pausa
+var _speed_mult := 1.0
+var _event_timer := 0.0
+var _is_paused := false
+var _pause_timer := 0.0
+var _y_dir := 0.0
+var _seq_state := 0 # 0: lateral, 1: descender, 2: ascender
+
+var _is_panic := false
+var _panic_velocity := Vector2.ZERO
 
 func _ready() -> void:
 	body_entered.connect(_on_body_entered)
@@ -27,44 +33,86 @@ func _ready() -> void:
 	# Iniciamos con valores aleatorios para que no todas cambien a la vez
 	_speed_mult = randf_range(0.85, 1.15)
 	_event_timer = randf_range(0.8, 2.4)
+	_y_dir = randf_range(-0.4, 0.4)
 
 func _process(delta: float) -> void:
 	_update_movement(delta)
 	_apply_direction_visual()
 
 	var w := get_viewport_rect().size.x
-	if position.x < -120.0 or position.x > w + 120.0:
+	var h := get_viewport_rect().size.y
+	if position.x < -200.0 or position.x > w + 200.0 or position.y < -200.0 or position.y > h + 200.0:
 		queue_free()
 
 func _update_movement(delta: float) -> void:
+	if _is_panic:
+		position += _panic_velocity * delta
+		return
+
 	if _is_paused:
 		_pause_timer -= delta
 		if _pause_timer <= 0.0:
 			_is_paused = false
-			# Tras la pausa, pequeño acelerón
 			_speed_mult = randf_range(1.15, 1.6)
 			_event_timer = randf_range(0.6, 1.6)
 			anim.play()
 		return
 
-	# Movimiento normal con multiplicador de velocidad
-	position.x += float(direction) * speed * _speed_mult * delta
+	if is_vertical:
+		# Movimiento de emboscada desde arriba
+		if position.y > 600:
+			# Curva de escape agresiva para no tocar masa. Hacia la pared más cercana
+			_y_dir = sign(position.x - (get_viewport_rect().size.x / 2.0))
+			if _y_dir == 0: _y_dir = 1.0
+			position.x += _y_dir * speed * 1.8 * delta
+			position.y += speed * 0.2 * delta
+		else:
+			position.y += speed * _speed_mult * delta
+			position.x += _y_dir * speed * 0.4 * delta # Ligero tambaleo lateral
+	else:
+		# Movimiento secuencial escalonado
+		if _seq_state == 0:
+			position.x += float(direction) * speed * _speed_mult * delta
+		else:
+			position.y += _y_dir * speed * _speed_mult * delta
 
-	# Cuenta atrás hasta el próximo evento
 	_event_timer -= delta
 	if _event_timer <= 0.0:
 		_trigger_behavior_event()
 
 func _trigger_behavior_event() -> void:
-	# 20% de probabilidad de pausa, 80% de cambio de velocidad
 	if randf() < 0.20:
 		_is_paused = true
 		_pause_timer = randf_range(0.18, 0.50)
 		anim.pause()
+		return
+
+	_speed_mult = randf_range(0.55, 1.55)
+	
+	if _seq_state == 0: # Si iba lateral
+		if randf() < 0.35 and position.y < 580:
+			_seq_state = 1 # Bajar unos pasitos
+			_event_timer = randf_range(0.4, 0.9)
+			_y_dir = 1.0
+		elif randf() < 0.2 and position.y > 200:
+			_seq_state = 2 # Subir unos pasitos
+			_event_timer = randf_range(0.4, 0.9)
+			_y_dir = -1.0
+		else:
+			_seq_state = 0 # Seguir lateral
+			_event_timer = randf_range(0.8, 2.0)
+			_y_dir = 0.0
 	else:
-		# Variación de velocidad: puede ir lento o rápido
-		_speed_mult = randf_range(0.55, 1.55)
-		_event_timer = randf_range(0.7, 2.2)
+		# Tras subir o bajar, vuelve a lateral obligatorio
+		_seq_state = 0
+		_event_timer = randf_range(0.8, 2.5)
+		_y_dir = 0.0
+
+func start_panic_mode() -> void:
+	_is_panic = true
+	var angle = randf_range(0, TAU)
+	_panic_velocity = Vector2(cos(angle), sin(angle)) * speed * randf_range(1.4, 3.0)
+	anim.play()
 
 func _on_body_entered(body: Node) -> void:
 	if body is RigidBody2D:
@@ -110,4 +158,38 @@ func _setup_animation() -> void:
 	anim.play("walk")
 
 func _apply_direction_visual() -> void:
-	anim.flip_h = direction < 0
+	var vx = 0.0
+	var vy = 0.0
+	
+	if _is_panic:
+		vx = _panic_velocity.x
+		vy = _panic_velocity.y
+	elif is_vertical:
+		if position.y > 600:
+			vx = _y_dir * 1.8 # Trazado de escape
+			vy = 0.2
+		else:
+			vx = _y_dir * 0.4
+			vy = 1.0
+	else:
+		vx = float(direction) if _seq_state == 0 else 0.0
+		vy = _y_dir if _seq_state != 0 else 0.0
+		
+	# Si la componente vertical es predominante, usar up/down
+	if abs(vy) > abs(vx) + 0.15: 
+		if vy < 0 and anim.sprite_frames != null and anim.sprite_frames.has_animation("rat_up"):
+			anim.play("rat_up")
+			anim.flip_h = false
+		elif vy > 0 and anim.sprite_frames != null and anim.sprite_frames.has_animation("rat_down"):
+			anim.play("rat_down")
+			anim.flip_h = false
+		else:
+			if anim.sprite_frames != null and anim.sprite_frames.has_animation(preferred_animation):
+				anim.play(preferred_animation)
+			anim.flip_h = vx < 0
+	else:
+		if anim.sprite_frames != null and anim.sprite_frames.has_animation(preferred_animation):
+			anim.play(preferred_animation)
+		elif anim.sprite_frames != null and anim.sprite_frames.has_animation("rat_move"):
+			anim.play("rat_move")
+		anim.flip_h = vx < 0

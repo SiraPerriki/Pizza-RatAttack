@@ -142,7 +142,7 @@ position = Vector2(750, 640)
 shape = SubResource("RectangleShape2D_1")
 
 [node name="TopWall" type="CollisionShape2D" parent="Walls" unique_id=1620907223]
-position = Vector2(360, -30)
+position = Vector2(360, -20)
 shape = SubResource("RectangleShape2D_2")
 
 [node name="BottomFloor" type="CollisionShape2D" parent="Walls" unique_id=1264514980]

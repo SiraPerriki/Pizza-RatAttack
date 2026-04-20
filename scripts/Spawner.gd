@@ -126,6 +126,16 @@ func _emit_ingredient(kind: String, forced_x: float = -999.0, is_vertical: bool 
 
 func _emit_instance(scene: PackedScene) -> void:
 	var node := scene.instantiate() as Area2D
+	
+	if node is Area2D and node.has_method("_trigger_behavior_event"): # is Rat
+		# 30% chance to spawn top-down
+		if randf() < 0.30:
+			node.position = Vector2(randf_range(100.0, 620.0), -60.0)
+			node.set("is_vertical", true)
+			add_child(node)
+			pickup_spawned.emit(node)
+			return
+			
 	node.position = Vector2(_spawn_x(), _spawn_y())
 	node.direction = _spawn_dir(node.position.x)
 	add_child(node)

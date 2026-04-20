@@ -1,5 +1,11 @@
 extends Node2D
 
+var mute_btn: Button
+var bg_music: AudioStreamPlayer
+var is_muted := false
+var sfx_sys: Node
+var stats_boxes := {}
+var stats_container: HBoxContainer
 @export var pizza_scene: PackedScene
 
 @onready var pizza_spawn: Marker2D = $PizzaSpawn
@@ -58,6 +64,8 @@ var _turn_caught := false
 var _is_playing := false
 var _camera_shake_time := 0.0
 var _is_invulnerable := false
+var completed_pizzas := 0
+var _game_over_invasion_active := false
 
 func _ready() -> void:
 	randomize()
@@ -79,26 +87,236 @@ func _ready() -> void:
 	bg_option.add_item("Fondo Mantel", 0)
 	bg_option.add_item("Fondo Rosa", 1)
 	bg_option.add_item("Fondo Verde", 2)
+	bg_option.add_item("Clásico", 3)
+	bg_option.add_item("Restaurante", 4)
+	bg_option.add_item("Restaurante 2", 5)
+	
 	bg_option.item_selected.connect(_on_bg_selected)
-	_on_bg_selected(0)
+	bg_option.selected = 3
+	_on_bg_selected(3)
 
 	var name_inp = get_node_or_null("EndScreen/Panel/NameInput")
 	if name_inp:
 		name_inp.text_submitted.connect(_on_name_submitted)
 	
-	var music = AudioStreamPlayer.new()
-	add_child(music)
-	if ResourceLoader.exists("res://audio/music_loop.ogg"):
-		music.stream = load("res://audio/music_loop.ogg")
-	elif ResourceLoader.exists("res://audio/arcade.ogg"):
-		music.stream = load("res://audio/arcade.ogg")
-	elif ResourceLoader.exists("res://audio/music_loop.mp3"):
-		music.stream = load("res://audio/music_loop.mp3")
-	music.autoplay = true
-	music.play()
+	# Sistema de Audio
+	bg_music = AudioStreamPlayer.new()
+	bg_music.volume_db = -12.0 # Bajar volumen para los sfx
+	var stream = load("res://sounds/audio_rat.mp3")
+	if stream is AudioStreamMP3:
+		stream.loop = true
+	bg_music.stream = stream
+	add_child(bg_music)
+	bg_music.play()
+	
+	# Restaurar Efectos de Sonido
+	sfx_sys = load("res://scripts/SFXSystem.gd").new()
+	add_child(sfx_sys)
+	
+	# Mute Button en HUD
+	mute_btn = Button.new()
+	mute_btn.text = "🔊"
+	mute_btn.position = Vector2(650, 1145)
+	mute_btn.size = Vector2(50, 40)
+	mute_btn.pressed.connect(_on_mute_toggled)
+	if has_node("HUD"): get_node("HUD").add_child(mute_btn)
+	
+	# Reposicionar componentes del HUD a la zona inferior
+	if has_node("HUD/Panel"): 
+		var pnl = get_node("HUD/Panel")
+		pnl.position = Vector2(0, 1070)
+		pnl.size = Vector2(720, 210) # 210px para extra aire
+	if has_node("HUD/PauseButton"): get_node("HUD/PauseButton").position = Vector2(650, 1085)
+	mute_btn.position = Vector2(590, 1085)
+	var btn_st = StyleBoxFlat.new()
+	btn_st.bg_color = Color(0.18, 0.18, 0.22, 0.95)
+	btn_st.corner_radius_top_left = 6
+	btn_st.corner_radius_top_right = 6
+	btn_st.corner_radius_bottom_left = 6
+	btn_st.corner_radius_bottom_right = 6
+	mute_btn.add_theme_stylebox_override("normal", btn_st)
+	var btn_hov = btn_st.duplicate()
+	btn_hov.bg_color = Color(0.28, 0.28, 0.32, 0.95)
+	mute_btn.add_theme_stylebox_override("hover", btn_hov)
+	
+	if has_node("HUD/LivesLabel"): 
+		get_node("HUD/LivesLabel").visible = false
+	if has_node("HUD/LivesContainer"): get_node("HUD/LivesContainer").position = Vector2(20, 1085)
+	
+	if has_node("HUD/ScoreLabel"): 
+		var s_lbl = get_node("HUD/ScoreLabel")
+		s_lbl.position = Vector2(20, 1130)
+		s_lbl.size = Vector2(680, 120)
+	
+	# Reformar stats
+	if is_instance_valid(phase_label):
+		phase_label.queue_free()
+	if is_instance_valid(goals_label):
+		var p = goals_label.get_parent()
+		stats_container = HBoxContainer.new()
+		stats_container.position = Vector2(20, 1195)
+		stats_container.size = Vector2(680, 50)
+		stats_container.add_theme_constant_override("separation", 10)
+		p.add_child(stats_container)
+		
+		var emojis = {
+			Globals.ING_CHEESE: "🧀",
+			Globals.ING_MUSHROOM: "🍄",
+			Globals.ING_PEPPERONI: "🌶",
+			Globals.ING_OLIVE: "🫒",
+			Globals.ING_ANCHOVY: "🐟"
+		}
+		var colors = {
+			Globals.ING_CHEESE: Color("#FFE55A"),
+			Globals.ING_MUSHROOM: Color("#E5D1BF"),
+			Globals.ING_PEPPERONI: Color("#FF6D6D"),
+			Globals.ING_OLIVE: Color("#7BE07B"),
+			Globals.ING_ANCHOVY: Color("#8BC5FF")
+		}
+		
+		var t = Theme.new()
+		var font = load("res://assets/fonts/PressStart2P-Regular.ttf")
+		if font: t.default_font = font
+		
+		for k in emojis.keys():
+			var l = RichTextLabel.new()
+			l.bbcode_enabled = true
+			l.custom_minimum_size = Vector2(100, 30)
+			l.scroll_active = false
+			l.theme = t
+			l.add_theme_font_size_override("normal_font_size", 16)
+			l.pivot_offset = Vector2(50, 15)
+			stats_boxes[k] = {"node": l, "emoji": emojis[k], "color": colors[k]}
+			stats_container.add_child(l)
+			
+		goals_label.queue_free()
 	
 	if has_node("HUD/ScoreLabel"):
 		score_label.pivot_offset = Vector2(340, 30)
+		var style = StyleBoxFlat.new()
+		style.bg_color = Color(0.08, 0.08, 0.1, 0.95)
+		style.corner_radius_top_left = 12
+		style.corner_radius_top_right = 12
+		style.corner_radius_bottom_left = 12
+		style.corner_radius_bottom_right = 12
+		style.content_margin_left = 20
+		style.content_margin_right = 20
+		style.content_margin_top = 8
+		style.content_margin_bottom = 8
+		style.border_width_bottom = 4
+		style.border_color = Color(0.9, 0.9, 0.9, 0.1)
+		score_label.add_theme_stylebox_override("normal", style)
+
+	# Añadir Bumpers Top
+	var bumper_tex = load("res://img/bumper_top.png")
+	if bumper_tex:
+		var bumper_script = load("res://scripts/Bumper.gd")
+		for x_pos in [120, 600]:
+			var b = Area2D.new()
+			b.set_script(bumper_script)
+			b.is_top = true
+			b.top_bounce_speed = 1200.0
+			b.position = Vector2(x_pos, 30)
+			b.z_index = 5
+			
+			var spr = Sprite2D.new()
+			spr.texture = bumper_tex
+			b.add_child(spr)
+			
+			var shape = CollisionShape2D.new()
+			var caps = CapsuleShape2D.new()
+			caps.height = 120.0
+			caps.radius = 30.0
+			shape.shape = caps
+			shape.rotation_degrees = 90
+			b.add_child(shape)
+			
+			add_child(b)
+
+	name_inp = get_node_or_null("EndScreen/Panel/NameInput")
+	if name_inp:
+		var btn_ok = Button.new()
+		btn_ok.text = "OK"
+		btn_ok.position = name_inp.position + Vector2(name_inp.size.x + 10, 0)
+		btn_ok.size = Vector2(80, name_inp.size.y)
+		var font_ok = load("res://assets/fonts/PressStart2P-Regular.ttf")
+		if font_ok: btn_ok.add_theme_font_override("font", font_ok)
+		btn_ok.add_theme_font_size_override("font_size", 18)
+		btn_ok.pressed.connect(func(): _on_name_submitted(name_inp.text))
+		btn_ok.name = "BtnOk"
+		btn_ok.visible = false
+		name_inp.get_parent().add_child(btn_ok)
+		
+	# Modales Temáticos (Estilo RPG / Arcade)
+	var base_style = StyleBoxFlat.new()
+	base_style.bg_color = Color(0.08, 0.08, 0.12, 1)
+	base_style.border_width_left = 6
+	base_style.border_width_top = 6
+	base_style.border_width_right = 6
+	base_style.border_width_bottom = 6
+	base_style.shadow_color = Color(0.0, 0.0, 0.0, 0.5)
+	base_style.shadow_size = 16
+	base_style.shadow_offset = Vector2(0, 8)
+	
+	if has_node("StartScreen/Panel"):
+		var st_pnl = get_node("StartScreen/Panel")
+		var st_style = base_style.duplicate()
+		st_style.border_color = Color("#FFE55A") # Queso
+		st_pnl.add_theme_stylebox_override("panel", st_style)
+		st_pnl.position = Vector2(30, 240)
+		st_pnl.size = Vector2(660, 600)
+		get_node("StartScreen/Panel/Title").position = Vector2(20, 40)
+		get_node("StartScreen/Panel/Title").size = Vector2(620, 140)
+		get_node("StartScreen/Panel/Subtitle").position = Vector2(20, 160)
+		get_node("StartScreen/Panel/Subtitle").size = Vector2(620, 100)
+		get_node("StartScreen/Panel/BgOption").position = Vector2(205, 260)
+		get_node("StartScreen/Panel/BgOption").size = Vector2(250, 40)
+		get_node("StartScreen/Panel/StartButton").position = Vector2(60, 320)
+		get_node("StartScreen/Panel/StartButton").size = Vector2(540, 80)
+		if has_node("StartScreen/Panel/RankingsButton"):
+			get_node("StartScreen/Panel/RankingsButton").position = Vector2(60, 420)
+			get_node("StartScreen/Panel/RankingsButton").size = Vector2(540, 70)
+		get_node("StartScreen/Panel/QuitButton").position = Vector2(60, 510)
+		get_node("StartScreen/Panel/QuitButton").size = Vector2(540, 70)
+		
+	if has_node("PauseScreen/Panel"):
+		var pa_pnl = get_node("PauseScreen/Panel")
+		var pa_style = base_style.duplicate()
+		pa_style.border_color = Color("#7BE07B") # Aceituna
+		pa_pnl.add_theme_stylebox_override("panel", pa_style)
+		pa_pnl.position = Vector2(40, 360)
+		pa_pnl.size = Vector2(640, 400)
+		get_node("PauseScreen/Panel/Title").position = Vector2(20, 60)
+		get_node("PauseScreen/Panel/Title").size = Vector2(600, 100)
+		get_node("PauseScreen/Panel/ResumeButton").position = Vector2(100, 180)
+		get_node("PauseScreen/Panel/ResumeButton").size = Vector2(440, 80)
+		get_node("PauseScreen/Panel/QuitButton").position = Vector2(100, 280)
+		get_node("PauseScreen/Panel/QuitButton").size = Vector2(440, 70)
+		
+	if has_node("EndScreen/Panel"):
+		var en_pnl = get_node("EndScreen/Panel")
+		var en_style = base_style.duplicate()
+		en_style.border_color = Color("#FF6D6D") # Pepperoni
+		en_pnl.add_theme_stylebox_override("panel", en_style)
+		en_pnl.position = Vector2(30, 100)
+		en_pnl.size = Vector2(660, 920)
+		get_node("EndScreen/Panel/Title").position = Vector2(20, 40)
+		get_node("EndScreen/Panel/Title").size = Vector2(620, 100)
+		get_node("EndScreen/Panel/ScoreFinalLabel").position = Vector2(20, 140)
+		get_node("EndScreen/Panel/ScoreFinalLabel").size = Vector2(620, 560)
+		
+		get_node("EndScreen/Panel/RestartButton").position = Vector2(110, 720)
+		get_node("EndScreen/Panel/RestartButton").size = Vector2(440, 80)
+		get_node("EndScreen/Panel/QuitButton").position = Vector2(110, 810)
+		get_node("EndScreen/Panel/QuitButton").size = Vector2(440, 70)
+		
+		get_node("EndScreen/Panel/NameInput").position = Vector2(70, 630)
+		get_node("EndScreen/Panel/NameInput").size = Vector2(380, 70)
+		get_node("EndScreen/Panel/NameInput").add_theme_font_size_override("font_size", 34)
+		if has_node("BtnOk"):
+			var b = get_node("BtnOk")
+			b.position = Vector2(470, 630)
+			b.size = Vector2(120, 70)
 
 	_show_start_screen()
 
@@ -130,18 +348,28 @@ func _apply_pixel_theme() -> void:
 		$StartScreen/Panel/Subtitle.add_theme_constant_override("line_separation", 12)
 		goals_label.add_theme_constant_override("line_separation", 6)
 		
-		$StartScreen/Panel/Title.add_theme_font_size_override("normal_font_size", 28)
-		$StartScreen/Panel/Subtitle.add_theme_font_size_override("normal_font_size", 16)
-		end_title.add_theme_font_size_override("normal_font_size", 32)
-		start_button.add_theme_font_size_override("font_size", 18)
-		quit_button_start.add_theme_font_size_override("font_size", 16)
-		restart_button.add_theme_font_size_override("font_size", 18)
-		quit_button_end.add_theme_font_size_override("font_size", 16)
+		$StartScreen/Panel/Title.add_theme_font_size_override("normal_font_size", 42)
+		$StartScreen/Panel/Subtitle.add_theme_font_size_override("normal_font_size", 22)
+		end_title.add_theme_font_size_override("normal_font_size", 54)
+		start_button.add_theme_font_size_override("font_size", 24)
+		quit_button_start.add_theme_font_size_override("font_size", 22)
+		restart_button.add_theme_font_size_override("font_size", 28)
+		quit_button_end.add_theme_font_size_override("font_size", 22)
+		if has_node("StartScreen/Panel/RankingsButton"):
+			get_node("StartScreen/Panel/RankingsButton").add_theme_font_size_override("font_size", 24)
 		
-		$PauseScreen/Panel/Title.add_theme_font_size_override("normal_font_size", 32)
-		pause_button.add_theme_font_size_override("font_size", 18)
-		resume_button.add_theme_font_size_override("font_size", 20)
-		quit_button_pause.add_theme_font_size_override("font_size", 16)
+		# Mutear botones fosforitos
+		var green_btn_style = start_button.get_theme_stylebox("normal")
+		if green_btn_style is StyleBoxFlat:
+			green_btn_style.bg_color = Color(0.1, 0.6, 0.2, 1)
+		var green_btn_hov = start_button.get_theme_stylebox("hover")
+		if green_btn_hov is StyleBoxFlat:
+			green_btn_hov.bg_color = Color(0.2, 0.7, 0.3, 1)
+		
+		$PauseScreen/Panel/Title.add_theme_font_size_override("normal_font_size", 54)
+		pause_button.add_theme_font_size_override("font_size", 22)
+		resume_button.add_theme_font_size_override("font_size", 30)
+		quit_button_pause.add_theme_font_size_override("font_size", 24)
 
 func _assign_scenes() -> void:
 	if pizza_scene == null:
@@ -156,6 +384,10 @@ func _spawn_pizza() -> void:
 	if pizza_scene == null:
 		pizza_scene = load("res://scenes/Pizza.tscn")
 	if is_instance_valid(_pizza):
+		_pizza.set_deferred("freeze", true)
+		_pizza.collision_layer = 0
+		_pizza.collision_mask = 0
+		_pizza.hide()
 		_pizza.queue_free()
 	_pizza = pizza_scene.instantiate() as RigidBody2D
 	_pizza.global_position = pizza_spawn.global_position
@@ -189,6 +421,8 @@ func _on_pickup_picked(kind: String, pos: Vector2 = Vector2.ZERO, node_ref: Node
 		_is_invulnerable = true
 		_start_invulnerability()
 		
+		if is_instance_valid(sfx_sys): sfx_sys.play_rat()
+		
 		combo = 1
 		lives -= 1
 		_spawn_floating_text("-1 VIDA!", pos, Color(1, 0.2, 0.2))
@@ -212,6 +446,7 @@ func _on_pickup_picked(kind: String, pos: Vector2 = Vector2.ZERO, node_ref: Node
 
 	if kind == Globals.ING_LIFE:
 		lives += 1
+		if is_instance_valid(sfx_sys): sfx_sys.play_pickup()
 		_spawn_floating_text("+1 VIDA!", pos, Color(1, 0.4, 0.8))
 		_refresh_hud()
 		if is_instance_valid(node_ref) and node_ref.has_method("queue_free"):
@@ -229,7 +464,11 @@ func _on_pickup_picked(kind: String, pos: Vector2 = Vector2.ZERO, node_ref: Node
 	tw.parallel().tween_property(score_label, "modulate", Color(1, 1, 1), 0.15)
 	
 	if combo > 1:
+		if is_instance_valid(sfx_sys): sfx_sys.play_combo()
 		_spawn_floating_text("Combo x%d!" % combo, pos + Vector2(0, 30), Color(1, 0.9, 0.2))
+	else:
+		if is_instance_valid(sfx_sys): sfx_sys.play_pickup()
+	
 	combo += 1
 
 	if is_instance_valid(node_ref) and node_ref.has_method("queue_free"):
@@ -238,6 +477,7 @@ func _on_pickup_picked(kind: String, pos: Vector2 = Vector2.ZERO, node_ref: Node
 	if progress.has(kind):
 		if progress[kind] < requirements.get(kind, 0):
 			progress[kind] += 1
+			_animate_stat(kind)
 			match kind:
 				Globals.ING_CHEESE:
 					_show_feedback("!Ya tienes el queso!", Color(1, 0.94, 0.4, 1))
@@ -256,7 +496,16 @@ func _on_pickup_picked(kind: String, pos: Vector2 = Vector2.ZERO, node_ref: Node
 	_sync_pizza_toppings()
 	_refresh_hud()
 	if _is_completed():
-		_end_match(true)
+		completed_pizzas += 1
+		score += 500
+		_spawn_floating_text("+500 PIZZA!", pizza_spawn.global_position, Color(1, 1, 0))
+		for k in progress.keys():
+			progress[k] = 0
+		_turn_active = false
+		_turn_caught = false
+		call_deferred("_spawn_pizza")
+		_sync_spawner()
+		_refresh_hud()
 
 func _trigger_hitstop(is_fatal: bool) -> void:
 	Engine.time_scale = 0.05
@@ -268,9 +517,36 @@ func _trigger_hitstop(is_fatal: bool) -> void:
 	
 	if is_fatal:
 		await get_tree().create_timer(1.0, true, false, true).timeout
-		_end_match(false)
+		_trigger_game_over_sequence()
 	else:
 		_refresh_hud()
+
+func _trigger_game_over_sequence() -> void:
+	_set_play_state(false)
+	_game_over_invasion_active = true
+		
+	var go_label = Label.new()
+	go_label.text = "GAME OVER"
+	go_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	go_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	go_label.position = Vector2(0, 500)
+	go_label.size = Vector2(720, 200)
+	go_label.add_theme_font_size_override("font_size", 60)
+	go_label.add_theme_color_override("font_color", Color(1, 0.2, 0.2))
+	var font = load("res://assets/fonts/PressStart2P-Regular.ttf")
+	if font: go_label.add_theme_font_override("font", font)
+	go_label.z_index = 200
+	add_child(go_label)
+	
+	var tw = create_tween()
+	tw.set_loops()
+	tw.tween_property(go_label, "modulate:a", 0.0, 0.15)
+	tw.tween_property(go_label, "modulate:a", 1.0, 0.15)
+	
+	await get_tree().create_timer(5.0, true, false, true).timeout
+	if is_instance_valid(go_label): go_label.queue_free()
+	_game_over_invasion_active = false
+	_end_match(false)
 
 func _start_invulnerability() -> void:
 	# El pizza debería parpadear si tuviéramos acceso a su sprite, 
@@ -302,40 +578,44 @@ func _refresh_hud() -> void:
 	_update_lives_container()
 	var m = int(round_time) / 60
 	var s = int(round_time) % 60
-	score_label.text = "[right]⏱ %02d:%02d | %d [color=#AAA]x%d[/color][/right]" % [m, s, score, combo]
+	score_label.text = "[center][font_size=18]⏳ %02d:%02d[/font_size]  |  🍕 %d  |  🌟 %d   [color=#FF9900]🔥x%d[/color][/center]" % [m, s, completed_pizzas, score, combo]
 
-	# Ingredientes en línea horizontal con emojis
-	goals_label.text = (
-		"[b][color=#FFE55A]🧀 %d/%d[/color][/b]   " % [progress[Globals.ING_CHEESE], requirements[Globals.ING_CHEESE]] +
-		"[b][color=#E5D1BF]🍄 %d/%d[/color][/b]   " % [progress[Globals.ING_MUSHROOM], requirements[Globals.ING_MUSHROOM]] +
-		"[b][color=#FF6D6D]🌶 %d/%d[/color][/b]   " % [progress[Globals.ING_PEPPERONI], requirements[Globals.ING_PEPPERONI]] +
-		"[b][color=#7BE07B]🫒 %d/%d[/color][/b]   " % [progress[Globals.ING_OLIVE], requirements[Globals.ING_OLIVE]] +
-		"[b][color=#8BC5FF]🐟 %d/%d[/color][/b]" % [progress[Globals.ING_ANCHOVY], requirements[Globals.ING_ANCHOVY]]
-	)
+	for k in stats_boxes.keys():
+		var box = stats_boxes[k]
+		var c_hex = box["color"].to_html(false)
+		box["node"].text = "[center][b][color=#" + c_hex + "]" + box["emoji"] + " %d/%d[/color][/b][/center]" % [progress[k], requirements[k]]
 
-	# Fase: texto compacto alineado a la derecha
-	if progress[Globals.ING_CHEESE] < requirements[Globals.ING_CHEESE]:
-		phase_label.text = "[right][color=#FFE55A]🧀 Queso primero[/color][/right]"
-	else:
-		phase_label.text = "[right][color=#AADDAA]Ingredientes libres[/color][/right]"
 
 func _update_lives_container() -> void:
 	for child in lives_container.get_children():
 		child.queue_free()
 		
-	for i in range(lives):
+	var to_draw = max(0, min(lives, 7))
+	for i in range(to_draw):
 		var t = TextureRect.new()
 		t.texture = load("res://img/vida.png")
 		t.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		t.custom_minimum_size = Vector2(36, 36)
 		t.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		lives_container.add_child(t)
+		
+	if lives > 7:
+		var lbl = Label.new()
+		lbl.text = "+" + str(lives - 7)
+		var font = load("res://assets/fonts/PressStart2P-Regular.ttf")
+		if font: lbl.add_theme_font_override("font", font)
+		lbl.add_theme_font_size_override("font_size", 20)
+		lbl.add_theme_color_override("font_color", Color(1, 0.4, 0.8))
+		lives_container.add_child(lbl)
+		lbl.position.y += 8
 
 func _reset_round_data() -> void:
 	lives = 3
 	score = 0
 	combo = 1
 	round_time = 0.0
+	completed_pizzas = 0
+	_game_over_invasion_active = false
 	_is_invulnerable = false
 	_turn_active = false
 	_turn_caught = false
@@ -385,19 +665,23 @@ func _end_match(victory: bool) -> void:
 
 	var name_inp = get_node_or_null("EndScreen/Panel/NameInput") as LineEdit
 	var btn_res = get_node_or_null("EndScreen/Panel/RestartButton") as Button
+	var btn_ok = get_node_or_null("EndScreen/Panel/BtnOk") as Button
 	if is_rec and name_inp:
 		score_final_label.text += "\n[color=#FFD700]¡NUEVO RÉCORD! Escribe tu nombre:[/color][/center]"
 		name_inp.visible = true
+		if btn_ok: btn_ok.visible = true
 		name_inp.text = ""
 		name_inp.grab_focus()
 		if btn_res: btn_res.visible = false
 	else:
 		score_final_label.text += "\n[color=#999]No has superado ningún récord.[/color]\n"
-		var t = "\n[color=#FFE0B2][b]-- TOP 5 PUNTOS --[/b]\n"
+		var t = "\n[color=#FFE0B2][b]-- TOP 5 --[/b]\n"
 		for r in rankings_score:
-			t += "%s : %d pts (⏱%02d:%02d)\n" % [r["name"], r["score"], int(r["time"])/60, int(r["time"])%60]
+			var p = r.get("pizzas", 0)
+			t += "%s : 🍕%d - %d pts (⏱%02d:%02d)\n" % [r["name"], p, r["score"], int(r["time"])/60, int(r["time"])%60]
 		score_final_label.text += t + "[/color][/center]"
 		if name_inp: name_inp.visible = false
+		if btn_ok: btn_ok.visible = false
 		if btn_res: btn_res.visible = true
 		
 	_show_panel_animated(end_screen, $EndScreen/Panel)
@@ -405,21 +689,27 @@ func _end_match(victory: bool) -> void:
 func _is_record() -> bool:
 	if score > 0:
 		if rankings_score.size() < 5: return true
-		for r in rankings_score:
-			if score > r["score"]: return true
+		var worst_idx = rankings_score.size() - 1
+		var worst_r = rankings_score[worst_idx]
+		var wr_p = worst_r.get("pizzas", 0)
+		if completed_pizzas > wr_p: return true
+		if completed_pizzas == wr_p and score > worst_r["score"]: return true
 	if round_time > 0.0:
 		if rankings_time.size() < 5: return true
-		for r in rankings_time:
-			if round_time > r["time"]: return true
+		var worst_time = rankings_time[rankings_time.size()-1]
+		if round_time > worst_time["time"]: return true
 	return false
 
 func _on_name_submitted(new_text: String) -> void:
 	var player_name = new_text.strip_edges()
 	if player_name == "": return
 	
-	var entry = {"name": player_name, "score": score, "time": round_time}
+	var entry = {"name": player_name, "score": score, "time": round_time, "pizzas": completed_pizzas}
 	rankings_score.append(entry)
 	rankings_score.sort_custom(func(a, b): 
+		var pa = a.get("pizzas", 0)
+		var pb = b.get("pizzas", 0)
+		if pa != pb: return pa > pb
 		if a["score"] == b["score"]: return a["time"] > b["time"]
 		return a["score"] > b["score"]
 	)
@@ -436,12 +726,15 @@ func _on_name_submitted(new_text: String) -> void:
 	
 	var name_inp = get_node_or_null("EndScreen/Panel/NameInput")
 	var btn_res = get_node_or_null("EndScreen/Panel/RestartButton")
+	var btn_ok = get_node_or_null("EndScreen/Panel/BtnOk")
 	if name_inp: name_inp.visible = false
+	if btn_ok: btn_ok.visible = false
 	if btn_res: btn_res.visible = true
 	
-	var t = "[center][b]-- TOP 5 PUNTOS --[/b]\n"
+	var t = "[center][b]-- TOP 5 --[/b]\n"
 	for r in rankings_score:
-		t += "%s - %d pts (⏱%02d:%02d)\n" % [r["name"], r["score"], int(r["time"])/60, int(r["time"])%60]
+		var p = r.get("pizzas", 0)
+		t += "%s : 🍕%d - %d pts (⏱%02d:%02d)\n" % [r["name"], p, r["score"], int(r["time"])/60, int(r["time"])%60]
 	score_final_label.text = t + "[/center]"
 
 func _on_start_pressed() -> void:
@@ -487,9 +780,36 @@ func _show_feedback(text: String, color: Color = Color.WHITE) -> void:
 func _on_feedback_timeout() -> void:
 	feedback_label.text = ""
 
+func _on_mute_toggled() -> void:
+	is_muted = not is_muted
+	var bus_idx = AudioServer.get_bus_index("Master")
+	AudioServer.set_bus_mute(bus_idx, is_muted)
+	if is_muted:
+		mute_btn.text = "🔇"
+	else:
+		mute_btn.text = "🔊"
+
+func _animate_stat(kind: String) -> void:
+	if stats_boxes.has(kind):
+		var node = stats_boxes[kind]["node"]
+		var tw = create_tween()
+		tw.set_trans(Tween.TRANS_ELASTIC)
+		tw.set_ease(Tween.EASE_OUT)
+		tw.tween_property(node, "scale", Vector2(1.8, 1.8), 0.1)
+		tw.parallel().tween_property(node, "modulate", Color(1.5, 1.5, 1.5), 0.1)
+		tw.tween_property(node, "scale", Vector2(1.0, 1.0), 0.6)
+		tw.parallel().tween_property(node, "modulate", Color(1, 1, 1), 0.6)
+
 func _show_panel_animated(screen: CanvasLayer, panel: Control) -> void:
 	screen.visible = true
-	var target_y = 370.0 if screen == start_screen else 390.0
+	var target_y = 280.0
+	if screen == start_screen:
+		target_y = 235.0
+	elif screen == end_screen:
+		target_y = 75.0
+	elif screen == pause_screen:
+		target_y = 280.0
+		
 	panel.position.y = -600.0
 	var tw = create_tween()
 	tw.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
@@ -519,8 +839,26 @@ func _process(delta: float) -> void:
 		round_time += delta
 		var m = int(round_time) / 60
 		var s = int(round_time) % 60
-		score_label.text = "[right]⏱ %02d:%02d | %d [color=#AAA]x%d[/color][/right]" % [m, s, score, combo]
+		score_label.text = "[right]⏳ %02d:%02d  |  🍕 %d  |  🌟 %d   [color=#FF9900]🔥x%d[/color][/right]" % [m, s, completed_pizzas, score, combo]
 		
+	if _game_over_invasion_active:
+		if randf() < 0.35 and is_instance_valid(spawner) and spawner.get("rat_scene") != null:
+			var rat = spawner.get("rat_scene").instantiate() as Node2D
+			var w = get_viewport_rect().size.x
+			var h = get_viewport_rect().size.y
+			
+			# Origen aleatorio en los bordes
+			var edge_spawn = randi() % 4
+			match edge_spawn:
+				0: rat.global_position = Vector2(-40, randf_range(100, h - 100)) # Izquierda
+				1: rat.global_position = Vector2(w + 40, randf_range(100, h - 100)) # Derecha
+				2: rat.global_position = Vector2(randf_range(100, w - 100), -40) # Arriba
+				3: rat.global_position = Vector2(randf_range(100, w - 100), h + 40) # Abajo
+				
+			add_child(rat)
+			if rat.has_method("start_panic_mode"):
+				rat.start_panic_mode()
+
 	if _camera_shake_time > 0.0:
 		var real_delta = delta * (1.0 / Engine.time_scale) if Engine.time_scale > 0.001 else 0.016
 		_camera_shake_time -= real_delta
@@ -573,3 +911,15 @@ func _on_bg_selected(index: int) -> void:
 		bg_checker.visible = false
 		bg_image.visible = true
 		bg_image.texture = load("res://img/fondo_verde.png")
+	elif index == 3:
+		bg_checker.visible = false
+		bg_image.visible = true
+		bg_image.texture = load("res://img/fondo_clasico.png")
+	elif index == 4:
+		bg_checker.visible = false
+		bg_image.visible = true
+		bg_image.texture = load("res://img/fondo_restaurante.png")
+	elif index == 5:
+		bg_checker.visible = false
+		bg_image.visible = true
+		bg_image.texture = load("res://img/fondo_restaurante_2.png")

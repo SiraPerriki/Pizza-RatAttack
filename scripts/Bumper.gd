@@ -9,6 +9,9 @@ extends Area2D
 @export var lateral_bounce_speed := 1400.0
 @export var lateral_up_boost := 800.0
 
+@export var is_top := false
+@export var top_bounce_speed := 1500.0
+
 func _ready() -> void:
 	body_entered.connect(_on_body_entered)
 
@@ -25,6 +28,11 @@ func _on_body_entered(body: Node) -> void:
 			v.y = -maxf(absf(v.y) * 0.8, lateral_up_boost)
 			# Small angular bump
 			rb.angular_velocity += dir_x * randf_range(8.0, 15.0)
+		elif is_top:
+			var dir_x := 1.0 if global_position.x < center_x else -1.0
+			v.x += dir_x * 900.0
+			v.y = maxf(absf(v.y) * 0.6, top_bounce_speed)
+			rb.angular_velocity += dir_x * randf_range(15.0, 25.0)
 		else:
 			var target_y := clampf(max(min_up_speed, absf(v.y) + extra_up_speed), min_up_speed, max_up_speed)
 			v.y = -target_y
@@ -32,4 +40,9 @@ func _on_body_entered(body: Node) -> void:
 			v.x += clampf(dx / center_x, -1.0, 1.0) * x_steer
 
 		rb.linear_velocity = v
+		
+		# Play Bumper boing
+		var audio = body.get_parent().get_node_or_null("AudioSystem")
+		if audio and audio.has_method("play_bumper"):
+			audio.play_bumper()
 
