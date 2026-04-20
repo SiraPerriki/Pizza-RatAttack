@@ -1,13 +1,13 @@
 extends Area2D
 
-signal picked(kind: String)
+signal picked(kind: String, pos: Vector2, node_ref: Node)
 
 @export var kind := "rat"
 @export var speed := 260.0
 @export var direction := 1 # 1 => right, -1 => left
 @export var frame_count := 4
 @export var anim_fps := 10.0
-@export var visual_scale := 2.8
+@export var visual_scale := 4.0
 @export var preferred_animation := "side_move"
 
 const RAT_SHEET := "res://img/rata_move_side.png"
@@ -68,8 +68,7 @@ func _trigger_behavior_event() -> void:
 
 func _on_body_entered(body: Node) -> void:
 	if body is RigidBody2D:
-		picked.emit(kind)
-		queue_free()
+		picked.emit(kind, global_position, self)
 
 func _setup_animation() -> void:
 	# Si la escena ya tiene animaciones configuradas, respetarlas

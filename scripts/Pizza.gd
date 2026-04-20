@@ -26,6 +26,9 @@ signal landed_idle()
 @onready var toppings_container: Node2D = $Toppings
 
 var _dragging := false
+var _is_sliding_base := false
+var _drag_start_touch_x := 0.0
+var _drag_start_anchor_x := 0.0
 var _drag_start_global := Vector2.ZERO
 var _drag_current_global := Vector2.ZERO
 var _idle_anchor := Vector2.ZERO
@@ -36,6 +39,7 @@ var _topping_nodes_by_kind := {
 	Globals.ING_MUSHROOM: [],
 	Globals.ING_PEPPERONI: [],
 	Globals.ING_OLIVE: [],
+	Globals.ING_ANCHOVY: [],
 }
 var _slot_positions: Array[Vector2] = []
 
@@ -44,6 +48,7 @@ const TEX_MASA_Q := "res://img/quesoconmasa.png"
 const TEX_MUSH_MASA := "res://img/champinon_masa.png"
 const TEX_PEP_MASA := "res://img/peperoni_masa.png"
 const TEX_OLIVE_MASA := "res://img/aceituna_masa.png"
+const TEX_ANCHOVY_MASA := "res://img/masa_anchoa.png"
 
 const STATE_IDLE := 0
 const STATE_DRAGGING := 1
@@ -101,13 +106,31 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 
 	if event is InputEventMouseMotion:
-		_drag_current_global = _constrain_drag_point(_screen_to_global((event as InputEventMouseMotion).position))
+		_process_drag(_screen_to_global((event as InputEventMouseMotion).position))
 	elif event is InputEventScreenDrag:
-		_drag_current_global = _constrain_drag_point(_screen_to_global((event as InputEventScreenDrag).position))
+		_process_drag(_screen_to_global((event as InputEventScreenDrag).position))
 	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
 		_end_drag()
 	elif event is InputEventScreenTouch and not event.pressed:
 		_end_drag()
+
+func _process_drag(raw_global: Vector2) -> void:
+	if _is_sliding_base:
+		var tension_y := raw_global.y - _drag_start_global.y
+		if tension_y > 28.0:
+			_is_sliding_base = false
+			_drag_start_global = global_position
+		else:
+			var dx := raw_global.x - _drag_start_touch_x
+			var viewport_w := get_viewport_rect().size.x
+			var target_x := clampf(_drag_start_anchor_x + dx, 70.0, viewport_w - 70.0)
+			_idle_anchor.x = target_x
+			global_position = Vector2(target_x, _idle_anchor.y)
+			_drag_current_global = global_position
+			_update_drag_visual()
+			return
+			
+	_drag_current_global = _constrain_drag_point(raw_global)
 
 func _begin_drag(screen_pos: Vector2) -> void:
 	if not _controls_enabled or _dragging or _state != STATE_IDLE:
@@ -117,16 +140,22 @@ func _begin_drag(screen_pos: Vector2) -> void:
 		_return_tween = null
 	_returning = false
 	_dragging = true
+	_is_sliding_base = true
 	_state = STATE_DRAGGING
 	freeze = true
+	
+	var raw := _screen_to_global(screen_pos)
+	_drag_start_touch_x = raw.x
+	_drag_start_anchor_x = _idle_anchor.x
 	_drag_start_global = global_position
-	_drag_current_global = _constrain_drag_point(_screen_to_global(screen_pos))
+	_drag_current_global = global_position
 	_update_drag_visual()
 
 func _end_drag() -> void:
 	if not _dragging:
 		return
 	_dragging = false
+	_is_sliding_base = false
 	var tension := _drag_current_global.y - _drag_start_global.y
 	var drag_vec := _drag_current_global - _drag_start_global
 	if drag_vec.length() < min_drag_to_launch or tension < min_vertical_drag:
@@ -156,6 +185,12 @@ func _constrain_drag_point(raw_global: Vector2) -> Vector2:
 	var down := clampf(p.y - _drag_start_global.y, 0.0, max_drag_distance)
 	p.y = _drag_start_global.y + down
 	p.x = clampf(p.x, _drag_start_global.x - max_side_drag, _drag_start_global.x + max_side_drag)
+	
+	var vw := get_viewport_rect().size.x
+	var vh := get_viewport_rect().size.y
+	p.x = clampf(p.x, 30.0, vw - 30.0)
+	p.y = clampf(p.y, 30.0, vh - 20.0)
+	
 	return p
 
 func _build_release_velocity() -> Vector2:
@@ -202,6 +237,11 @@ func _start_return_to_idle() -> void:
 		_return_tween.kill()
 
 	var from := global_position
+	
+	# Dinamically update idle anchor based on where it fell
+	var viewport_w := get_viewport_rect().size.x
+	_idle_anchor.x = clampf(from.x, 70.0, viewport_w - 70.0)
+	
 	var dx := _idle_anchor.x - from.x
 	var dist := from.distance_to(_idle_anchor)
 	var duration := clampf(0.22 + dist / 850.0, 0.22, 0.55)
@@ -246,6 +286,7 @@ func sync_toppings(progress: Dictionary) -> void:
 	_sync_small_topping(Globals.ING_MUSHROOM, int(progress.get(Globals.ING_MUSHROOM, 0)), TEX_MUSH_MASA)
 	_sync_small_topping(Globals.ING_PEPPERONI, int(progress.get(Globals.ING_PEPPERONI, 0)), TEX_PEP_MASA)
 	_sync_small_topping(Globals.ING_OLIVE, int(progress.get(Globals.ING_OLIVE, 0)), TEX_OLIVE_MASA)
+	_sync_small_topping(Globals.ING_ANCHOVY, int(progress.get(Globals.ING_ANCHOVY, 0)), TEX_ANCHOVY_MASA)
 
 func reset_toppings() -> void:
 	for k in _topping_nodes_by_kind.keys():
