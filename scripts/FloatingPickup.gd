@@ -52,6 +52,10 @@ func _process(delta: float) -> void:
 	var pulse := 1.0 + sin(_time * pulse_speed + _phase * 1.4) * pulse_amount
 	scale = Vector2.ONE * visual_scale * pulse
 
+	# Rotación constante para orgánico
+	var rot_dir = 1.0 if _phase > PI else -1.0
+	rotation += 1.8 * delta * rot_dir
+
 	# Eliminar si sale de pantalla
 	var w := get_viewport_rect().size.x
 	var h := get_viewport_rect().size.y

@@ -427,6 +427,7 @@ func _on_pickup_picked(kind: String, pos: Vector2 = Vector2.ZERO, node_ref: Node
 		lives -= 1
 		_spawn_floating_text("-1 VIDA!", pos, Color(1, 0.2, 0.2))
 		_show_feedback("!Mordisco de rata!", Color(1, 0.34, 0.34, 1))
+		_refresh_hud() # Update heart visuals immediately
 		
 		# Pegar rata a la pizza y teñirla de rojo
 		if is_instance_valid(node_ref) and is_instance_valid(_pizza):

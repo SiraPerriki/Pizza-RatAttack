@@ -76,9 +76,15 @@ func _spawn_one() -> void:
 		return
 
 	if _phase == 0:
-		# First phase: cheese + rats.
+		# First phase: cheese + rats. Only one cheese in screen allowed.
+		var has_cheese := false
+		for c in get_children():
+			if c.get("kind") == Globals.ING_CHEESE and not c.is_queued_for_deletion():
+				has_cheese = true
+				break
+				
 		var force_cheese := _spawns_since_ingredient >= max_spawns_without_ingredient
-		if not force_cheese and randf() < rat_chance:
+		if has_cheese or (not force_cheese and randf() < rat_chance):
 			_emit_instance(rat_scene)
 			_spawns_since_ingredient += 1
 		else:

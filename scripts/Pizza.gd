@@ -4,13 +4,13 @@ signal launched()
 signal landed_idle()
 
 @export var launch_power := 12.0
-@export var max_launch_speed := 1400.0
-@export var max_speed := 1800.0
+@export var max_launch_speed := 1550.0
+@export var max_speed := 1900.0
 @export var hold_damping := 0.98
-@export var min_drag_to_launch := 16.0
-@export var min_vertical_drag := 24.0
-@export var max_drag_distance := 260.0
-@export var max_side_drag := 320.0
+@export var min_drag_to_launch := 12.0
+@export var min_vertical_drag := 16.0
+@export var max_drag_distance := 80.0
+@export var max_side_drag := 180.0
 @export var min_up_release_speed := 520.0
 @export var side_launch_scale := 1.15
 @export var max_launch_angle_deg := 76.0
@@ -33,6 +33,7 @@ var _drag_start_global := Vector2.ZERO
 var _drag_current_global := Vector2.ZERO
 var _idle_anchor := Vector2.ZERO
 var _returning := false
+var _orientation_rotated := false
 var _return_tween: Tween
 var _used_slot_indices: Array[int] = []
 var _topping_nodes_by_kind := {
@@ -158,6 +159,14 @@ func _end_drag() -> void:
 	_is_sliding_base = false
 	var tension := _drag_current_global.y - _drag_start_global.y
 	var drag_vec := _drag_current_global - _drag_start_global
+	
+	# Detectar pulsación rápida para girar 90 grados
+	if drag_vec.length() < 10.0 and tension < 10.0:
+		_toggle_orientation()
+		sling_band.visible = false
+		_start_return_to_idle()
+		return
+
 	if drag_vec.length() < min_drag_to_launch or tension < min_vertical_drag:
 		sling_band.visible = false
 		_start_return_to_idle()
@@ -168,8 +177,29 @@ func _end_drag() -> void:
 	sling_band.visible = false
 
 	var v := _build_release_velocity()
+	
+	# Aplicar físicas según la orientación
+	if _orientation_rotated:
+		v *= 1.35      # Más veloz y tenso al estar de lado
+		linear_damp = 0.0
+		angular_velocity = randf_range(10.0, 16.0) * signf(v.x + 0.1)
+	else:
+		v *= 1.0      # Mantiene LA MISMA FÍSICA Y MAGIA QUE ANTES en lanzamiento normal
+		linear_damp = 0.0
+		angular_velocity = randf_range(2.0, 4.0) * signf(v.x + 0.1)
+		
 	linear_velocity = v
 	launched.emit()
+
+func _toggle_orientation() -> void:
+	_orientation_rotated = not _orientation_rotated
+	var target_rot = PI/2 if _orientation_rotated else 0.0
+	
+	if _return_tween != null and _return_tween.is_running():
+		_return_tween.kill()
+		
+	var tw = create_tween()
+	tw.tween_property(self, "rotation", target_rot, 0.15).set_trans(Tween.TRANS_SPRING)
 
 func _screen_to_global(screen_pos: Vector2) -> Vector2:
 	# Convert viewport screen coords -> global canvas coords (works for mouse & touch).
@@ -245,16 +275,22 @@ func _start_return_to_idle() -> void:
 	var dx := _idle_anchor.x - from.x
 	var dist := from.distance_to(_idle_anchor)
 	var duration := clampf(0.22 + dist / 850.0, 0.22, 0.55)
-	var extra_rot := (TAU * 0.6) * signf(dx) if absf(dx) > 8.0 else TAU * 0.25
+	
+	var target_rot := roundf(rotation / TAU) * TAU
+	if absf(dx) > 20.0:
+		target_rot += TAU * signf(dx)
 
 	_return_tween = create_tween()
 	_return_tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 	_return_tween.parallel().tween_property(self, "global_position", _idle_anchor, duration)
-	_return_tween.parallel().tween_property(self, "rotation", rotation + extra_rot, duration)
+	_return_tween.parallel().tween_property(self, "rotation", target_rot, duration)
 	_return_tween.finished.connect(func() -> void:
 		_returning = false
+		_orientation_rotated = false
 		_state = STATE_IDLE
 		global_position = _idle_anchor
+		rotation = 0.0
+		linear_damp = 0.0
 		linear_velocity = Vector2.ZERO
 		angular_velocity = 0.0
 		_update_idle_sling_base()
@@ -272,9 +308,12 @@ func force_idle() -> void:
 		_return_tween.kill()
 	_returning = false
 	_dragging = false
+	_orientation_rotated = false
 	_state = STATE_IDLE
 	freeze = true
 	global_position = _idle_anchor
+	rotation = 0.0
+	linear_damp = 0.0
 	linear_velocity = Vector2.ZERO
 	angular_velocity = 0.0
 	sling_base.visible = true
