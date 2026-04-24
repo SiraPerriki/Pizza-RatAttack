@@ -2,6 +2,11 @@ extends Node2D
 
 signal pickup_spawned(pickup: Area2D)
 
+const MODE_EASY := "easy"
+const MODE_EXPERT := "expert"
+const EXPERT_STEP := 0.10
+const EXPERT_DENSITY_BOOST := 1.20
+
 @export var ingredient_scene: PackedScene
 @export var rat_scene: PackedScene
 
@@ -25,12 +30,14 @@ var progress := {
 	Globals.ING_ANCHOVY: 0,
 }
 
-var _phase := 0 # 0 => only cheese+rats, 1 => others+rats (cheese no more)
+var _phase := 0
 var _t := 0.0
 var _time_since_last_life := 0.0
 var _time_since_vertical_life := 0.0
 var _life_spawn_side := 1
 var _spawns_since_ingredient := 0
+var _mode := MODE_EASY
+var _difficulty_level := 0
 @export var max_spawns_without_ingredient := 2
 
 func _process(delta: float) -> void:
@@ -38,7 +45,7 @@ func _process(delta: float) -> void:
 	_time_since_last_life += delta
 	_time_since_vertical_life += delta
 	
-	if _t < spawn_interval:
+	if _t < _effective_spawn_interval():
 		return
 	_t = 0.0
 	
@@ -58,10 +65,15 @@ func _process(delta: float) -> void:
 		
 	_spawn_one()
 
+func configure_mode(mode: String) -> void:
+	_mode = mode
+
+func set_difficulty_level(level: int) -> void:
+	_difficulty_level = maxi(0, level)
+
 func set_progress(kind: String, count: int) -> void:
 	if progress.has(kind):
 		progress[kind] = count
-	# Recompute phase every update so round restarts always enforce cheese first.
 	_phase = 1 if progress[Globals.ING_CHEESE] >= requirements[Globals.ING_CHEESE] else 0
 	if _phase == 0:
 		_spawns_since_ingredient = 0
@@ -71,12 +83,36 @@ func remaining(kind: String) -> int:
 		return 0
 	return maxi(0, requirements[kind] - progress.get(kind, 0))
 
+func _speed_multiplier() -> float:
+	if _mode != MODE_EXPERT:
+		return 1.0
+	return 1.0 + float(_difficulty_level) * EXPERT_STEP
+
+func _effective_spawn_interval() -> float:
+	if _mode != MODE_EXPERT:
+		return spawn_interval
+	var density_mult := EXPERT_DENSITY_BOOST + float(_difficulty_level) * EXPERT_STEP
+	return maxf(0.45, spawn_interval / density_mult)
+
+func _effective_rat_chance(completed_slots: int) -> float:
+	var chance := rat_chance
+	if _mode == MODE_EXPERT:
+		chance *= 1.0 + float(_difficulty_level) * EXPERT_STEP
+		return clampf(chance, 0.12, 0.92)
+	return rat_chance + (1.0 - rat_chance) * (float(completed_slots) / 4.0)
+
+func _phase_one_pool() -> Array[String]:
+	var pool: Array[String] = []
+	for k in [Globals.ING_MUSHROOM, Globals.ING_PEPPERONI, Globals.ING_OLIVE, Globals.ING_ANCHOVY]:
+		if _mode == MODE_EXPERT or remaining(k) > 0:
+			pool.append(k)
+	return pool
+
 func _spawn_one() -> void:
 	if ingredient_scene == null or rat_scene == null:
 		return
 
 	if _phase == 0:
-		# First phase: cheese + rats. Only one cheese in screen allowed.
 		var has_cheese := false
 		for c in get_children():
 			if c.get("kind") == Globals.ING_CHEESE and not c.is_queued_for_deletion():
@@ -84,7 +120,7 @@ func _spawn_one() -> void:
 				break
 				
 		var force_cheese := _spawns_since_ingredient >= max_spawns_without_ingredient
-		if has_cheese or (not force_cheese and randf() < rat_chance):
+		if has_cheese or (not force_cheese and randf() < _effective_rat_chance(0)):
 			_emit_instance(rat_scene)
 			_spawns_since_ingredient += 1
 		else:
@@ -92,20 +128,14 @@ func _spawn_one() -> void:
 			_spawns_since_ingredient = 0
 		return
 
-	# Phase 1: remaining ingredients + rats (no more cheese).
-	# When an ingredient is completed, its "slot" effectively becomes a rat slot.
-	var remaining_pool: Array[String] = []
+	var remaining_pool := _phase_one_pool()
 	var completed_slots := 0
 	for k in [Globals.ING_MUSHROOM, Globals.ING_PEPPERONI, Globals.ING_OLIVE, Globals.ING_ANCHOVY]:
-		if remaining(k) > 0:
-			remaining_pool.append(k)
-		else:
+		if remaining(k) <= 0:
 			completed_slots += 1
 
-	# Base rats are now doubled for testing. Completed ingredients further increase danger.
-	var effective_rat_chance := rat_chance + (1.0 - rat_chance) * (float(completed_slots) / 4.0)
 	var force_ingredient := _spawns_since_ingredient >= max_spawns_without_ingredient and not remaining_pool.is_empty()
-	if not force_ingredient and randf() < effective_rat_chance:
+	if not force_ingredient and randf() < _effective_rat_chance(completed_slots):
 		_emit_instance(rat_scene)
 		_spawns_since_ingredient += 1
 		return
@@ -114,12 +144,15 @@ func _spawn_one() -> void:
 		_emit_instance(rat_scene)
 		_spawns_since_ingredient += 1
 		return
+
 	_emit_ingredient(remaining_pool[randi() % remaining_pool.size()])
 	_spawns_since_ingredient = 0
 
 func _emit_ingredient(kind: String, forced_x: float = -999.0, is_vertical: bool = false) -> void:
 	var node := ingredient_scene.instantiate() as Area2D
 	node.kind = kind
+	if node.has_method("set"):
+		node.set("speed", float(node.get("speed")) * _speed_multiplier())
 	if is_vertical:
 		node.position = Vector2(forced_x, -60.0)
 		node.set("is_vertical", true)
@@ -132,9 +165,10 @@ func _emit_ingredient(kind: String, forced_x: float = -999.0, is_vertical: bool 
 
 func _emit_instance(scene: PackedScene) -> void:
 	var node := scene.instantiate() as Area2D
+	if node.has_method("set"):
+		node.set("speed", float(node.get("speed")) * _speed_multiplier())
 	
-	if node is Area2D and node.has_method("_trigger_behavior_event"): # is Rat
-		# 30% chance to spawn top-down
+	if node is Area2D and node.has_method("_trigger_behavior_event"):
 		if randf() < 0.30:
 			node.position = Vector2(randf_range(100.0, 620.0), -60.0)
 			node.set("is_vertical", true)

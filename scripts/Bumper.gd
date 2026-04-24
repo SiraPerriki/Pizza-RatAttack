@@ -41,6 +41,13 @@ func _on_body_entered(body: Node) -> void:
 
 		rb.linear_velocity = v
 		
+		# Efecto de partículas para rebote
+		var main = body.get_parent().get_node_or_null("Main") as Node2D
+		if main and main.has_method("create_bounce_effect"):
+			var particle_system = main.get_node_or_null("ParticleSystem")
+			if particle_system:
+				particle_system.create_bounce_effect(global_position)
+		
 		# Play Bumper boing
 		var audio = body.get_parent().get_node_or_null("AudioSystem")
 		if audio and audio.has_method("play_bumper"):

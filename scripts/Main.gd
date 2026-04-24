@@ -18,6 +18,7 @@ var stats_container: HBoxContainer
 @onready var pause_button: Button = $HUD/PauseButton
 @onready var start_screen: CanvasLayer = $StartScreen
 @onready var start_button: Button = $StartScreen/Panel/StartButton
+@onready var rankings_button: Button = $StartScreen/Panel/RankingsButton
 @onready var quit_button_start: Button = $StartScreen/Panel/QuitButton
 @onready var pause_screen: CanvasLayer = $PauseScreen
 @onready var resume_button: Button = $PauseScreen/Panel/ResumeButton
@@ -33,15 +34,34 @@ var stats_container: HBoxContainer
 @onready var bg_image: TextureRect = $BgImage
 @onready var bg_checker: ColorRect = $Background
 @onready var danger_overlay: ColorRect = $HUD/DangerOverlay
+@onready var rankings_screen: CanvasLayer = $RankingsScreen
+@onready var rankings_title: RichTextLabel = $RankingsScreen/Panel/Title
+@onready var rankings_text: RichTextLabel = $RankingsScreen/Panel/RankingsText
+@onready var close_rankings_button: Button = $RankingsScreen/Panel/CloseRankingsBtn
 
 var score := 0
 var combo := 1
 var lives := 3
 var round_time := 0.0
 
+const MODE_EASY := "easy"
+const MODE_EXPERT := "expert"
+const SAVE_PATH := "user://pizza_rankings.json"
+const GAME_AREA_SIZE := Vector2(720, 1280)
+const CELEBRATION_PIZZA_TEXTURE := "res://img/masa.png"
+const PIXEL_FONT_PATH := "res://assets/fonts/PressStart2P-Regular.ttf"
+const EXPERT_SPEED_STEP := 0.10
+const EXPERT_RAT_STEP := 0.10
+const EXPERT_EXTRA_COMPLETED_POINTS := 1
+
+var current_mode := MODE_EASY
+var rankings_by_mode := {
+	MODE_EASY: {"scores": [], "times": []},
+	MODE_EXPERT: {"scores": [], "times": []},
+}
 var rankings_score := []
 var rankings_time := []
-const SAVE_PATH := "user://pizza_rankings.json"
+var expert_button: Button
 
 var progress := {
 	Globals.ING_CHEESE: 0,
@@ -66,6 +86,7 @@ var _camera_shake_time := 0.0
 var _is_invulnerable := false
 var completed_pizzas := 0
 var _game_over_invasion_active := false
+var _is_celebrating := false
 
 func _ready() -> void:
 	randomize()
@@ -76,14 +97,17 @@ func _ready() -> void:
 		spawner.pickup_spawned.connect(_on_pickup_spawned)
 	feedback_timer.timeout.connect(_on_feedback_timeout)
 	start_button.pressed.connect(_on_start_pressed)
+	rankings_button.pressed.connect(_on_rankings_pressed)
 	quit_button_start.pressed.connect(_on_quit_pressed)
 	restart_button.pressed.connect(_on_restart_pressed)
 	quit_button_end.pressed.connect(_on_quit_pressed)
 	pause_button.pressed.connect(_on_pause_pressed)
 	resume_button.pressed.connect(_on_resume_pressed)
 	quit_button_pause.pressed.connect(_on_quit_pressed)
+	close_rankings_button.pressed.connect(_on_close_rankings_pressed)
 
 	_load_rankings()
+	_set_mode(MODE_EASY)
 	bg_option.add_item("Fondo Mantel", 0)
 	bg_option.add_item("Fondo Rosa", 1)
 	bg_option.add_item("Fondo Verde", 2)
@@ -263,21 +287,40 @@ func _ready() -> void:
 		var st_style = base_style.duplicate()
 		st_style.border_color = Color("#FFE55A") # Queso
 		st_pnl.add_theme_stylebox_override("panel", st_style)
-		st_pnl.position = Vector2(30, 240)
-		st_pnl.size = Vector2(660, 600)
+		st_pnl.position = Vector2(30, 180)
+		st_pnl.size = Vector2(660, 720)
 		get_node("StartScreen/Panel/Title").position = Vector2(20, 40)
 		get_node("StartScreen/Panel/Title").size = Vector2(620, 140)
 		get_node("StartScreen/Panel/Subtitle").position = Vector2(20, 160)
-		get_node("StartScreen/Panel/Subtitle").size = Vector2(620, 100)
-		get_node("StartScreen/Panel/BgOption").position = Vector2(205, 260)
-		get_node("StartScreen/Panel/BgOption").size = Vector2(250, 40)
-		get_node("StartScreen/Panel/StartButton").position = Vector2(60, 320)
-		get_node("StartScreen/Panel/StartButton").size = Vector2(540, 80)
+		get_node("StartScreen/Panel/Subtitle").size = Vector2(620, 120)
+		get_node("StartScreen/Panel/BgOption").position = Vector2(150, 300)
+		get_node("StartScreen/Panel/BgOption").size = Vector2(360, 50)
+		get_node("StartScreen/Panel/StartButton").position = Vector2(60, 390)
+		get_node("StartScreen/Panel/StartButton").size = Vector2(540, 86)
+		get_node("StartScreen/Panel/StartButton").text = "MODO FACIL"
 		if has_node("StartScreen/Panel/RankingsButton"):
-			get_node("StartScreen/Panel/RankingsButton").position = Vector2(60, 420)
-			get_node("StartScreen/Panel/RankingsButton").size = Vector2(540, 70)
-		get_node("StartScreen/Panel/QuitButton").position = Vector2(60, 510)
-		get_node("StartScreen/Panel/QuitButton").size = Vector2(540, 70)
+			get_node("StartScreen/Panel/RankingsButton").position = Vector2(60, 600)
+			get_node("StartScreen/Panel/RankingsButton").size = Vector2(540, 72)
+		get_node("StartScreen/Panel/QuitButton").position = Vector2(60, 690)
+		get_node("StartScreen/Panel/QuitButton").size = Vector2(540, 72)
+		
+		# Añadir botón de test para textos flotantes
+		expert_button = Button.new()
+		expert_button.name = "ExpertButton"
+		expert_button.text = "MODO EXPERTO"
+		expert_button.position = Vector2(60, 495)
+		expert_button.size = Vector2(540, 86)
+		expert_button.pressed.connect(_on_expert_pressed)
+		expert_button.add_theme_stylebox_override("normal", start_button.get_theme_stylebox("normal"))
+		expert_button.add_theme_stylebox_override("hover", start_button.get_theme_stylebox("hover"))
+		expert_button.add_theme_stylebox_override("pressed", start_button.get_theme_stylebox("pressed"))
+		expert_button.add_theme_stylebox_override("focus", start_button.get_theme_stylebox("focus"))
+		expert_button.add_theme_color_override("font_color", Color(1, 1, 1, 1))
+		var expert_font = load(PIXEL_FONT_PATH)
+		if expert_font:
+			expert_button.add_theme_font_override("font", expert_font)
+		expert_button.add_theme_font_size_override("font_size", 24)
+		st_pnl.add_child(expert_button)
 		
 	if has_node("PauseScreen/Panel"):
 		var pa_pnl = get_node("PauseScreen/Panel")
@@ -352,6 +395,9 @@ func _apply_pixel_theme() -> void:
 		$StartScreen/Panel/Subtitle.add_theme_font_size_override("normal_font_size", 22)
 		end_title.add_theme_font_size_override("normal_font_size", 54)
 		start_button.add_theme_font_size_override("font_size", 24)
+		if is_instance_valid(expert_button):
+			expert_button.theme = t
+			expert_button.add_theme_font_size_override("font_size", 24)
 		quit_button_start.add_theme_font_size_override("font_size", 22)
 		restart_button.add_theme_font_size_override("font_size", 28)
 		quit_button_end.add_theme_font_size_override("font_size", 22)
@@ -371,6 +417,52 @@ func _apply_pixel_theme() -> void:
 		resume_button.add_theme_font_size_override("font_size", 30)
 		quit_button_pause.add_theme_font_size_override("font_size", 24)
 
+func _mode_label(mode: String) -> String:
+	return "FACIL" if mode == MODE_EASY else "EXPERTO"
+
+func _set_mode(mode: String) -> void:
+	current_mode = mode
+	_apply_rankings_from_mode()
+	if spawner != null and spawner.has_method("configure_mode"):
+		spawner.configure_mode(current_mode)
+	if rankings_button != null:
+		rankings_button.text = "RECORDS " + _mode_label(current_mode)
+
+func _apply_rankings_from_mode() -> void:
+	var mode_data: Dictionary = rankings_by_mode.get(current_mode, {"scores": [], "times": []})
+	rankings_score = mode_data.get("scores", [])
+	rankings_time = mode_data.get("times", [])
+
+func _store_rankings_for_current_mode() -> void:
+	rankings_by_mode[current_mode] = {
+		"scores": rankings_score.duplicate(true),
+		"times": rankings_time.duplicate(true),
+	}
+
+func _expert_level() -> int:
+	return completed_pizzas if current_mode == MODE_EXPERT else 0
+
+func _points_for_ingredient(kind: String) -> int:
+	var current_amount: int = int(progress.get(kind, 0))
+	var required_amount: int = int(requirements.get(kind, 0))
+	var is_extra: bool = progress.has(kind) and current_amount >= required_amount
+	if current_mode == MODE_EXPERT and kind != Globals.ING_CHEESE and is_extra:
+		return EXPERT_EXTRA_COMPLETED_POINTS
+	return 10 * combo
+
+func _update_mode_button_states() -> void:
+	var easy_active := current_mode == MODE_EASY
+	if start_button != null:
+		start_button.modulate = Color(1, 1, 1, 1) if easy_active else Color(0.82, 0.82, 0.82, 1)
+	if is_instance_valid(expert_button):
+		expert_button.modulate = Color(1, 1, 1, 1) if not easy_active else Color(0.82, 0.82, 0.82, 1)
+
+func _apply_current_mode_to_run() -> void:
+	_set_mode(current_mode)
+	if spawner != null and spawner.has_method("set_difficulty_level"):
+		spawner.set_difficulty_level(_expert_level())
+	_update_mode_button_states()
+
 func _assign_scenes() -> void:
 	if pizza_scene == null:
 		pizza_scene = load("res://scenes/Pizza.tscn")
@@ -389,19 +481,37 @@ func _spawn_pizza() -> void:
 		_pizza.collision_mask = 0
 		_pizza.hide()
 		_pizza.queue_free()
+	
+	# Crear nueva pizza con animación suave
 	_pizza = pizza_scene.instantiate() as RigidBody2D
 	_pizza.global_position = pizza_spawn.global_position
+	_pizza.scale = Vector2(0.1, 0.1)  # Empezar pequeña
+	_pizza.modulate = Color(1, 1, 1, 0)  # Empezar invisible
+	
 	if _pizza.has_signal("launched"):
 		_pizza.launched.connect(_on_pizza_launched)
 	if _pizza.has_signal("landed_idle"):
 		_pizza.landed_idle.connect(_on_pizza_landed_idle)
 	add_child(_pizza)
+	
+	# Animación suave de aparición
+	var spawn_tween = create_tween()
+	spawn_tween.set_parallel(true)
+	spawn_tween.tween_property(_pizza, "scale", Vector2(1.0, 1.0), 0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	spawn_tween.parallel().tween_property(_pizza, "modulate:a", 1.0, 0.3)
+	
 	if _pizza.has_method("force_idle"):
 		_pizza.force_idle()
 	if _pizza.has_method("reset_toppings"):
 		_pizza.reset_toppings()
 	if _pizza.has_method("set_controls_enabled"):
 		_pizza.set_controls_enabled(_is_playing)
+
+func _resume_after_pizza_completion() -> void:
+	_spawn_pizza()
+	_set_play_state(true)
+	_sync_spawner()
+	_refresh_hud()
 
 func _on_pickup_spawned(pickup: Area2D) -> void:
 	if pickup.has_signal("picked"):
@@ -454,19 +564,19 @@ func _on_pickup_picked(kind: String, pos: Vector2 = Vector2.ZERO, node_ref: Node
 			node_ref.queue_free()
 		return
 
-	var pts := 10 * combo
+	var pts := _points_for_ingredient(kind)
 	score += pts
 	_spawn_floating_text("+%d" % pts, pos, Color(0.4, 1, 0.4))
 	
 	var tw = create_tween()
 	tw.tween_property(score_label, "scale", Vector2(1.2, 1.2), 0.05).set_trans(Tween.TRANS_SINE)
-	tw.parallel().tween_property(score_label, "modulate", Color(1.5, 1.5, 0.5), 0.05)
+	tw.parallel().tween_property(score_label, "modulate", Color(0.2, 1.0, 0.8), 0.05)
 	tw.tween_property(score_label, "scale", Vector2(1.0, 1.0), 0.15)
 	tw.parallel().tween_property(score_label, "modulate", Color(1, 1, 1), 0.15)
 	
 	if combo > 1:
 		if is_instance_valid(sfx_sys): sfx_sys.play_combo()
-		_spawn_floating_text("Combo x%d!" % combo, pos + Vector2(0, 30), Color(1, 0.9, 0.2))
+		_spawn_floating_text("Combo x%d!" % combo, pos + Vector2(0, 30), Color(1, 0.9, 0.2), true)
 	else:
 		if is_instance_valid(sfx_sys): sfx_sys.play_pickup()
 	
@@ -491,22 +601,31 @@ func _on_pickup_picked(kind: String, pos: Vector2 = Vector2.ZERO, node_ref: Node
 				Globals.ING_ANCHOVY:
 					_show_feedback("Has cogido anchoa", Color(0.3, 0.6, 0.9, 1))
 		else:
-			_show_feedback("Ese ingrediente ya esta completo", Color(0.9, 0.9, 0.9, 1))
+			if current_mode == MODE_EXPERT and kind != Globals.ING_CHEESE:
+				_show_feedback("Ingrediente repetido: solo suma 1 punto", Color(0.9, 0.9, 0.9, 1))
+			else:
+				_show_feedback("Ese ingrediente ya esta completo", Color(0.9, 0.9, 0.9, 1))
 
 	_sync_spawner()
 	_sync_pizza_toppings()
 	_refresh_hud()
 	if _is_completed():
 		completed_pizzas += 1
+		if spawner != null and spawner.has_method("set_difficulty_level"):
+			spawner.set_difficulty_level(_expert_level())
 		score += 500
 		_spawn_floating_text("+500 PIZZA!", pizza_spawn.global_position, Color(1, 1, 0))
 		for k in progress.keys():
 			progress[k] = 0
 		_turn_active = false
 		_turn_caught = false
-		call_deferred("_spawn_pizza")
-		_sync_spawner()
-		_refresh_hud()
+		
+		# Celebración de pizza completada
+		await _celebrate_pizza_completion()
+		for c in spawner.get_children():
+			c.queue_free()
+		
+		call_deferred("_resume_after_pizza_completion")
 
 func _trigger_hitstop(is_fatal: bool) -> void:
 	Engine.time_scale = 0.05
@@ -566,6 +685,10 @@ func _rat_escape(node: Node) -> void:
 		tw.chain().tween_callback(node.queue_free)
 
 func _sync_spawner() -> void:
+	if spawner != null and spawner.has_method("configure_mode"):
+		spawner.configure_mode(current_mode)
+	if spawner != null and spawner.has_method("set_difficulty_level"):
+		spawner.set_difficulty_level(_expert_level())
 	for k in progress.keys():
 		spawner.set_progress(k, progress[k])
 
@@ -626,6 +749,7 @@ func _reset_round_data() -> void:
 		c.queue_free()
 	feedback_label.text = ""
 	feedback_timer.stop()
+	_apply_current_mode_to_run()
 	_sync_spawner()
 	_sync_pizza_toppings()
 	_refresh_hud()
@@ -641,17 +765,23 @@ func _set_play_state(playing: bool) -> void:
 func _show_start_screen() -> void:
 	get_tree().paused = false
 	if pause_screen: pause_screen.visible = false
+	if rankings_screen: rankings_screen.visible = false
 	_set_play_state(false)
 	_reset_round_data()
 	_spawn_pizza()
 	_show_panel_animated(start_screen, $StartScreen/Panel)
 	end_screen.visible = false
+	_update_mode_button_states()
+	if not is_instance_valid(phase_label):
+		return
 	phase_label.text = "[right]¡Pulsa Iniciar![/right]"
 
 func _start_match() -> void:
 	_reset_round_data()
 	_spawn_pizza()
 	start_screen.visible = false
+	if rankings_screen:
+		rankings_screen.visible = false
 	end_screen.visible = false
 	_set_play_state(true)
 
@@ -739,10 +869,26 @@ func _on_name_submitted(new_text: String) -> void:
 	score_final_label.text = t + "[/center]"
 
 func _on_start_pressed() -> void:
+	_set_mode(MODE_EASY)
+	_start_match()
+
+func _on_expert_pressed() -> void:
+	_set_mode(MODE_EXPERT)
 	_start_match()
 
 func _on_restart_pressed() -> void:
 	_start_match()
+
+func _on_rankings_pressed() -> void:
+	_refresh_rankings_screen()
+	start_screen.visible = false
+	rankings_screen.visible = true
+	_show_panel_animated(rankings_screen, $RankingsScreen/Panel)
+
+func _on_close_rankings_pressed() -> void:
+	rankings_screen.visible = false
+	start_screen.visible = true
+	_show_panel_animated(start_screen, $StartScreen/Panel)
 
 func _on_quit_pressed() -> void:
 	get_tree().quit()
@@ -756,6 +902,30 @@ func _on_pause_pressed() -> void:
 func _on_resume_pressed() -> void:
 	get_tree().paused = false
 	pause_screen.visible = false
+
+func _on_test_button_pressed() -> void:
+	return
+	# Test de diferentes tipos de mensajes flotantes para verificar centrado
+	var center_y = _get_game_area_rect().get_center().y
+	
+	_spawn_floating_text("+10 PUNTOS", Vector2(0, center_y), Color(0.4, 1, 0.4))
+	
+	await get_tree().create_timer(3.0, true, false, true).timeout
+	_spawn_floating_text("Combo x2!", Vector2(0, center_y + 50), Color(1, 0.9, 0.2), true)
+	
+	await get_tree().create_timer(3.0, true, false, true).timeout
+	_spawn_floating_text("+1 VIDA!", Vector2(0, center_y + 100), Color(1, 0.4, 0.8))
+	
+	await get_tree().create_timer(3.0, true, false, true).timeout
+	_spawn_floating_text("¡PIZZA +1!", Vector2(0, center_y + 150), Color(1, 0.8, 0.2))
+	
+	await get_tree().create_timer(3.0, true, false, true).timeout
+	# Test de celebración con texto permanente para captura
+	_test_celebration_permanente()
+
+func _test_celebration_permanente() -> void:
+	# Celebración simple y funcional
+	return
 
 func _on_pizza_launched() -> void:
 	if not _is_playing:
@@ -816,24 +986,115 @@ func _show_panel_animated(screen: CanvasLayer, panel: Control) -> void:
 	tw.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
 	tw.tween_property(panel, "position:y", target_y, 0.5).set_trans(Tween.TRANS_BOUNCE).set_ease(Tween.EASE_OUT)
 
-func _spawn_floating_text(text: String, pos: Vector2, color: Color) -> void:
+func _get_game_area_rect() -> Rect2:
+	return Rect2(Vector2.ZERO, GAME_AREA_SIZE)
+
+func _ensure_fx_layer() -> CanvasLayer:
+	var layer = get_node_or_null("FXLayer") as CanvasLayer
+	if layer == null:
+		layer = CanvasLayer.new()
+		layer.name = "FXLayer"
+		layer.layer = 50
+		add_child(layer)
+	return layer
+
+func _spawn_floating_text(text: String, pos: Vector2, color: Color, is_combo: bool = false) -> void:
 	var lbl = Label.new()
 	lbl.text = text
-	lbl.global_position = pos - Vector2(25, 10)
+	
+	# Usar coordenadas relativas al viewport para que funcione en cualquier resolución
+	var game_rect = _get_game_area_rect()
+	
+	# Calcular posición centrada relativa
+	lbl.position = Vector2(game_rect.position.x, pos.y)
+	lbl.size = Vector2(game_rect.size.x, 48)
+	lbl.pivot_offset = lbl.size * 0.5
+	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	lbl.modulate = color
 	lbl.z_index = 100
 	lbl.add_theme_font_size_override("font_size", 20)
+	lbl.add_theme_color_override("font_color", color)
 	lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
 	lbl.add_theme_constant_override("outline_size", 6)
-	var font = load("res://assets/fonts/PressStart2P-Regular.ttf")
+	var font = load(PIXEL_FONT_PATH)
 	if font: lbl.add_theme_font_override("font", font)
 	
-	add_child(lbl)
+	_ensure_fx_layer().add_child(lbl)
 	var tw = create_tween()
 	tw.set_parallel(true)
-	tw.tween_property(lbl, "global_position:y", lbl.global_position.y - 60.0, 0.9).set_ease(Tween.EASE_OUT)
-	tw.tween_property(lbl, "modulate:a", 0.0, 0.9).set_ease(Tween.EASE_OUT).set_delay(0.2)
+	
+	# Animación de escala especial para combos
+	if is_combo:
+		tw.tween_property(lbl, "scale", Vector2(1.5, 1.5), 0.1).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		tw.parallel().tween_property(lbl, "position:y", lbl.position.y - 60.0, 0.9).set_ease(Tween.EASE_OUT)
+		tw.tween_property(lbl, "scale", Vector2(1.0, 1.0), 0.3).set_delay(0.1)
+		tw.tween_property(lbl, "modulate:a", 0.0, 0.9).set_ease(Tween.EASE_OUT).set_delay(0.2)
+	else:
+		tw.tween_property(lbl, "position:y", lbl.position.y - 60.0, 0.9).set_ease(Tween.EASE_OUT)
+		tw.tween_property(lbl, "modulate:a", 0.0, 0.9).set_ease(Tween.EASE_OUT).set_delay(0.2)
+	
 	tw.chain().tween_callback(lbl.queue_free)
+
+func _celebrate_pizza_completion() -> void:
+	_is_celebrating = true
+	_is_playing = false
+	
+	# Pausar spawner durante celebración
+	if spawner:
+		spawner.set_process(false)
+	
+	# Crear sprite de pizza para celebración
+	var pizza_sprite = Sprite2D.new()
+	pizza_sprite.texture = load(CELEBRATION_PIZZA_TEXTURE)
+	pizza_sprite.position = Vector2(360, 640)  # Centro fijo del área de juego
+	pizza_sprite.scale = Vector2(0.1, 0.1)
+	pizza_sprite.modulate = Color(1, 1, 1, 1)
+	pizza_sprite.z_index = 200
+	_ensure_fx_layer().add_child(pizza_sprite)
+	
+	# Crear texto "Pizza +1" simple y visible
+	var pizza_text = Label.new()
+	pizza_text.text = "¡PIZZA +1!"
+	pizza_text.position = Vector2(0, 740)  # Debajo del sprite, centrado en el area de juego
+	pizza_text.size = Vector2(GAME_AREA_SIZE.x, 60)
+	pizza_text.pivot_offset = pizza_text.size * 0.5
+	pizza_text.scale = Vector2(0.5, 0.5)  # Tamaño visible
+	pizza_text.modulate = Color(1, 0.8, 0.2, 1)
+	pizza_text.z_index = 201
+	pizza_text.add_theme_font_size_override("font_size", 36)
+	pizza_text.add_theme_color_override("font_color", Color(1, 0.8, 0.2))
+	pizza_text.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
+	pizza_text.add_theme_constant_override("outline_size", 6)
+	pizza_text.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	pizza_text.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	var font = load(PIXEL_FONT_PATH)
+	if font: pizza_text.add_theme_font_override("font", font)
+	_ensure_fx_layer().add_child(pizza_text)
+	
+	# Animación simple (2 segundos)
+	var tw = create_tween()
+	tw.set_parallel(true)
+	
+	# Zoom de pizza con rotación
+	tw.tween_property(pizza_sprite, "scale", Vector2(2.0, 2.0), 1.0).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.parallel().tween_property(pizza_sprite, "rotation", TAU * 2.0, 2.2).from(0.0)
+	tw.tween_property(pizza_sprite, "modulate:a", 0.0, 0.8).set_delay(2.2)
+	
+	# Zoom de texto
+	tw.tween_property(pizza_text, "scale", Vector2(0.8, 0.8), 0.5).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_property(pizza_text, "modulate:a", 0.0, 0.8).set_delay(2.2)
+	
+	# Esperar 2 segundos y limpiar
+	await get_tree().create_timer(3.0, true, false, true).timeout
+	
+	pizza_sprite.queue_free()
+	pizza_text.queue_free()
+	
+	# Restaurar estado del juego
+	_is_celebrating = false
+	if spawner:
+		spawner.set_process(true)
 
 func _process(delta: float) -> void:
 	if _is_playing:
@@ -888,17 +1149,50 @@ func _sync_pizza_toppings() -> void:
 	if is_instance_valid(_pizza) and _pizza.has_method("sync_toppings"):
 		_pizza.sync_toppings(progress)
 
+func _refresh_rankings_screen() -> void:
+	var sections: Array[String] = []
+	for mode in [MODE_EASY, MODE_EXPERT]:
+		var data: Dictionary = rankings_by_mode.get(mode, {"scores": [], "times": []})
+		var lines: Array[String] = []
+		lines.append("[b]%s[/b]" % _mode_label(mode))
+		if data.get("scores", []).is_empty():
+			lines.append("[color=#999]Sin records todavia[/color]")
+		else:
+			var idx := 1
+			for entry in data.get("scores", []):
+				lines.append("%d. %s  Pizza:%d  Pts:%d  Tiempo:%02d:%02d" % [
+					idx,
+					entry.get("name", "---"),
+					entry.get("pizzas", 0),
+					entry.get("score", 0),
+					int(entry.get("time", 0.0)) / 60,
+					int(entry.get("time", 0.0)) % 60
+				])
+				idx += 1
+		sections.append("[center]%s[/center]" % "\n".join(lines))
+	rankings_title.text = "[center][b]RECORDS FACIL Y EXPERTO[/b][/center]"
+	rankings_text.text = "\n\n".join(sections)
+
 func _load_rankings() -> void:
 	if FileAccess.file_exists(SAVE_PATH):
 		var file_str = FileAccess.get_file_as_string(SAVE_PATH)
 		var data = JSON.parse_string(file_str)
 		if typeof(data) == TYPE_DICTIONARY:
-			if data.has("scores"): rankings_score = data["scores"]
-			if data.has("times"): rankings_time = data["times"]
+			if data.has(MODE_EASY) or data.has(MODE_EXPERT):
+				rankings_by_mode[MODE_EASY] = data.get(MODE_EASY, {"scores": [], "times": []})
+				rankings_by_mode[MODE_EXPERT] = data.get(MODE_EXPERT, {"scores": [], "times": []})
+			else:
+				rankings_by_mode[MODE_EASY] = {
+					"scores": data.get("scores", []),
+					"times": data.get("times", []),
+				}
+				rankings_by_mode[MODE_EXPERT] = {"scores": [], "times": []}
+	_apply_rankings_from_mode()
 
 func _save_rankings() -> void:
+	_store_rankings_for_current_mode()
 	var f := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
-	f.store_string(JSON.stringify({"scores": rankings_score, "times": rankings_time}))
+	f.store_string(JSON.stringify(rankings_by_mode))
 
 func _on_bg_selected(index: int) -> void:
 	if index == 0:
