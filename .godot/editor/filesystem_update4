@@ -1,9 +1,1 @@
-res://scripts/Pizza.gd
-res://scripts/Rat.gd
-res://scripts/Spawner.gd
 res://scripts/Main.gd
-res://scripts/Bumper.gd
-res://scripts/LocalizationManager.gd
-res://scripts/PizzaAnimator.gd
-res://scripts/TransitionManager.gd
-res://scripts/ParticleSystem.gd
